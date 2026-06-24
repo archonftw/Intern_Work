@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VES Collector Dashboard</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #0f172a;
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #38bdf8;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #334155;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background: #1e293b;
+        }
+
+        tr:nth-child(even) {
+            background: #111827;
+        }
+
+        .critical {
+            color: red;
+            font-weight: bold;
+        }
+
+        .major {
+            color: orange;
+        }
+
+        .normal {
+            color: lightgreen;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>📡 VES Collector Dashboard</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Domain</th>
+            <th>Event ID</th>
+            <th>Event Name</th>
+            <th>Source</th>
+            <th>Priority</th>
+            <th>Received At</th>
+        </tr>
+    </thead>
+
+    <tbody id="events"></tbody>
+</table>
+
+<script src="/static/app.js"></script>
+
+</body>
+</html>
