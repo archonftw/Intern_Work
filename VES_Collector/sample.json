@@ -1,81 +1,151 @@
-{
-  "eventList": [
-    {
+[
+  {
+    "event": {
       "commonEventHeader": {
-        "version": "4.1",
-        "vesEventListenerVersion": "7.1.1",
-        "domain": "fault",
-        "eventName": "Fault_Vscf:Acs-Ericsson_PilotNumberPoolExhaustion",
-        "eventId": "fault-001",
+        "domain": "heartbeat",
+        "eventId": "HB-1001",
+        "eventName": "Heartbeat",
+        "eventType": "System",
         "sequence": 1,
-        "priority": "High",
-        "reportingEntityName": "ibcx0001vm002oam001",
-        "sourceName": "gnb-01",
-        "startEpochMicrosec": 1719210000000000,
-        "lastEpochMicrosec": 1719210000000000
-      },
-      "faultFields": {
-        "alarmCondition": "PilotNumberPoolExhaustion",
-        "eventSeverity": "CRITICAL",
-        "eventSourceType": "other",
-        "specificProblem": "Calls cannot complete",
-        "vfStatus": "Active",
-        "alarmAdditionalInformation": {
-          "poolSize": "1000",
-          "used": "1000"
-        }
-      }
-    },
-
-    {
-      "commonEventHeader": {
-        "version": "4.1",
-        "vesEventListenerVersion": "7.1.1",
-        "domain": "measurement",
-        "eventName": "Measurement_5G_CellLoad",
-        "eventId": "meas-001",
-        "sequence": 2,
         "priority": "Normal",
-        "reportingEntityName": "du-01",
-        "sourceName": "cell-42",
-        "startEpochMicrosec": 1719210005000000,
-        "lastEpochMicrosec": 1719210005000000
+        "reportingEntityName": "gNB-01",
+        "sourceName": "gNB-01",
+        "startEpochMicrosec": 1782360000000000,
+        "lastEpochMicrosec": 1782360000000000,
+        "version": "4.0"
       },
-      "measurementFields": {
-        "measurementFieldsVersion": "4.0",
-        "measurementInterval": 300,
-        "requestRate": 1200,
-        "meanRequestLatency": 23.5,
-        "cpuUsageArray": [],
-        "memoryUsageArray": []
-      }
-    },
-
-    {
-      "commonEventHeader": {
-        "version": "4.1",
-        "vesEventListenerVersion": "7.1.1",
-        "domain": "fault",
-        "eventName": "Fault_Radio_LinkFailure",
-        "eventId": "fault-002",
-        "sequence": 3,
-        "priority": "Medium",
-        "reportingEntityName": "du-02",
-        "sourceName": "gnb-02",
-        "startEpochMicrosec": 1719210010000000,
-        "lastEpochMicrosec": 1719210010000000
-      },
-      "faultFields": {
-        "alarmCondition": "RadioLinkFailure",
-        "eventSeverity": "MAJOR",
-        "eventSourceType": "radio",
-        "specificProblem": "UE disconnected due to weak signal",
-        "vfStatus": "Active",
-        "alarmAdditionalInformation": {
-          "cellId": "42",
-          "sector": "A"
-        }
+      "heartbeatFields": {
+        "heartbeatInterval": 30
       }
     }
-  ]
-}
+  },
+
+  {
+    "event": {
+      "commonEventHeader": {
+        "domain": "fault",
+        "eventId": "FLT-2001",
+        "eventName": "CellOutage",
+        "eventType": "Alarm",
+        "sequence": 2,
+        "priority": "High",
+        "reportingEntityName": "DU-01",
+        "sourceName": "DU-01",
+        "startEpochMicrosec": 1782360001000000,
+        "lastEpochMicrosec": 1782360001000000,
+        "version": "4.0"
+      },
+      "faultFields": {
+        "alarmCondition": "Cell Down",
+        "alarmInterfaceA": "N1",
+        "eventSeverity": "CRITICAL",
+        "specificProblem": "Sector Failure",
+        "faultFieldsVersion": "4.0"
+      }
+    }
+  },
+
+  {
+    "event": {
+      "commonEventHeader": {
+        "domain": "measurement",
+        "eventId": "MEAS-3001",
+        "eventName": "PerformanceMetrics",
+        "eventType": "KPI",
+        "sequence": 3,
+        "priority": "Normal",
+        "reportingEntityName": "CU-CP-01",
+        "sourceName": "CU-CP-01",
+        "startEpochMicrosec": 1782360002000000,
+        "lastEpochMicrosec": 1782360002000000,
+        "version": "4.0"
+      },
+      "measurementFields": {
+        "measurementInterval": 60,
+        "measurements": [
+          {
+            "name": "CPU_Usage",
+            "value": 68.5
+          },
+          {
+            "name": "Memory_Usage",
+            "value": 74.2
+          },
+          {
+            "name": "Connected_UEs",
+            "value": 523
+          }
+        ]
+      }
+    }
+  },
+
+  {
+    "event": {
+      "commonEventHeader": {
+        "domain": "stateChange",
+        "eventId": "SC-4001",
+        "eventName": "CellStateChanged",
+        "eventType": "State",
+        "sequence": 4,
+        "priority": "Normal",
+        "reportingEntityName": "Cell-01",
+        "sourceName": "Cell-01",
+        "startEpochMicrosec": 1782360003000000,
+        "lastEpochMicrosec": 1782360003000000,
+        "version": "4.0"
+      },
+      "stateChangeFields": {
+        "oldState": "LOCKED",
+        "newState": "UNLOCKED",
+        "stateInterface": "O1"
+      }
+    }
+  },
+
+  {
+    "event": {
+      "commonEventHeader": {
+        "domain": "notification",
+        "eventId": "NOTIF-5001",
+        "eventName": "SoftwareUpgrade",
+        "eventType": "Notification",
+        "sequence": 5,
+        "priority": "Normal",
+        "reportingEntityName": "AMF-01",
+        "sourceName": "AMF-01",
+        "startEpochMicrosec": 1782360004000000,
+        "lastEpochMicrosec": 1782360004000000,
+        "version": "4.0"
+      },
+      "notificationFields": {
+        "changeIdentifier": "SW-UPGRADE-1",
+        "changeType": "Software",
+        "notificationFieldsVersion": "4.0"
+      }
+    }
+  },
+
+  {
+    "event": {
+      "commonEventHeader": {
+        "domain": "thresholdCrossingAlert",
+        "eventId": "TCA-6001",
+        "eventName": "HighCPUUsage",
+        "eventType": "Threshold",
+        "sequence": 6,
+        "priority": "High",
+        "reportingEntityName": "SMF-01",
+        "sourceName": "SMF-01",
+        "startEpochMicrosec": 1782360005000000,
+        "lastEpochMicrosec": 1782360005000000,
+        "version": "4.0"
+      },
+      "thresholdCrossingAlertFields": {
+        "indicatorName": "CPU_Usage",
+        "indicatorValue": 95.3,
+        "thresholdValue": 90.0
+      }
+    }
+  }
+]

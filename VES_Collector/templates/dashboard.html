@@ -1,76 +1,235 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>VES Collector Dashboard</title>
-
-    <style>
-        body {
-            font-family: Arial;
-            background: #0f172a;
-            color: white;
-            margin: 0;
-            padding: 20px;
-        }
-
-        h1 {
-            color: #38bdf8;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        th, td {
-            border: 1px solid #334155;
-            padding: 10px;
-            text-align: left;
-        }
-
-        th {
-            background: #1e293b;
-        }
-
-        tr:nth-child(even) {
-            background: #111827;
-        }
-
-        .critical {
-            color: red;
-            font-weight: bold;
-        }
-
-        .major {
-            color: orange;
-        }
-
-        .normal {
-            color: lightgreen;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VES Collector Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Segoe UI,sans-serif}
+body{background:#0f172a;color:#fff;padding:20px}
+h1{color:#38bdf8;margin-bottom:20px}
+.dashboard{display:grid;gap:20px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px}
+.card,.panel{background:#1e293b;border-radius:12px;padding:16px}
+.card p{color:#94a3b8}
+.card h2{margin-top:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.controls{display:flex;gap:10px;flex-wrap:wrap}
+input,select{padding:10px;border-radius:8px;border:none}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px;text-align:left}
+th{background:#334155}
+tr{border-bottom:1px solid #334155}
+tr:hover{background:#273449;cursor:pointer}
+pre{background:#0f172a;padding:12px;border-radius:8px;max-height:400px;overflow:auto}
+#liveFeed{max-height:250px;overflow:auto}
+.feed-item{padding:8px;border-bottom:1px solid #334155}
+.badge{padding:4px 8px;border-radius:8px;font-size:12px}
+.fault{background:#dc2626}
+.measurement{background:#2563eb}
+.heartbeat{background:#16a34a}
+.notification{background:#d97706}
+.stateChange{background:#7c3aed}
+.thresholdCrossingAlert{background:#e11d48}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
+.kpi{background:#334155;padding:10px;border-radius:8px}
+</style>
 </head>
-
 <body>
-
 <h1>📡 VES Collector Dashboard</h1>
 
+<div class="stats">
+<div class="card"><p>Total</p><h2 id="totalEvents">0</h2></div>
+<div class="card"><p>Fault</p><h2 id="faultEvents">0</h2></div>
+<div class="card"><p>Measurement</p><h2 id="measurementEvents">0</h2></div>
+<div class="card"><p>Heartbeat</p><h2 id="heartbeatEvents">0</h2></div>
+<div class="card"><p>Notification</p><h2 id="notificationEvents">0</h2></div>
+<div class="card"><p>State Change</p><h2 id="stateChangeEvents">0</h2></div>
+<div class="card"><p>Threshold</p><h2 id="thresholdEvents">0</h2></div>
+<div class="card"><p>Status</p><h2 style="color:#22c55e">UP</h2></div>
+</div>
+
+<div class="grid2">
+<div class="panel">
+<h3>Domain Distribution</h3>
+<canvas id="domainChart"></canvas>
+</div>
+
+<div class="panel">
+<h3>Fault Severity</h3>
+<canvas id="severityChart"></canvas>
+</div>
+</div>
+
+<div class="grid2">
+<div class="panel">
+<h3>Live Event Feed</h3>
+<div id="liveFeed"></div>
+</div>
+
+<div class="panel">
+<h3>Event Details</h3>
+<div id="measurementKPIs"></div>
+<pre id="eventDetails">Select an event...</pre>
+</div>
+</div>
+
+<div class="panel">
+<div class="controls">
+<input id="searchBox" placeholder="Search event id or source">
+<select id="domainFilter">
+<option value="">All Domains</option>
+<option value="fault">fault</option>
+<option value="measurement">measurement</option>
+<option value="heartbeat">heartbeat</option>
+<option value="notification">notification</option>
+<option value="stateChange">stateChange</option>
+<option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
+</select>
+</div>
+<br>
 <table>
-    <thead>
-        <tr>
-            <th>Domain</th>
-            <th>Event ID</th>
-            <th>Event Name</th>
-            <th>Source</th>
-            <th>Priority</th>
-            <th>Received At</th>
-        </tr>
-    </thead>
-
-    <tbody id="events"></tbody>
+<thead>
+<tr>
+<th>Time</th><th>Domain</th><th>Event ID</th><th>Source</th><th>Priority</th>
+</tr>
+</thead>
+<tbody id="eventsTable"></tbody>
 </table>
+</div>
 
-<script src="/static/app.js"></script>
+<script>
+let domainChart,severityChart;
+let cachedEvents=[];
 
+async function loadStats(){
+ const stats=await (await fetch('/api/stats')).json();
+
+ for(const k of ['totalEvents','faultEvents','measurementEvents','heartbeatEvents','notificationEvents','stateChangeEvents','thresholdEvents']){
+   const el=document.getElementById(k);
+   if(el && stats[k]!==undefined) el.innerText=stats[k];
+ }
+
+ updateDomainChart(stats);
+ updateSeverityChart(stats);
+}
+
+function updateDomainChart(stats){
+ const ctx=document.getElementById('domainChart');
+ if(domainChart) domainChart.destroy();
+
+ domainChart=new Chart(ctx,{
+ type:'doughnut',
+ data:{
+ labels:['Fault','Measurement','Heartbeat','Notification','State Change','Threshold'],
+ datasets:[{data:[
+ stats.faultEvents||0,
+ stats.measurementEvents||0,
+ stats.heartbeatEvents||0,
+ stats.notificationEvents||0,
+ stats.stateChangeEvents||0,
+ stats.thresholdEvents||0
+ ]}]
+ }});
+}
+
+function updateSeverityChart(stats){
+ const ctx=document.getElementById('severityChart');
+ if(severityChart) severityChart.destroy();
+
+ severityChart=new Chart(ctx,{
+ type:'bar',
+ data:{
+ labels:['Critical','Major','Warning'],
+ datasets:[{data:[
+ stats.criticalFaults||0,
+ stats.majorFaults||0,
+ stats.warningFaults||0
+ ]}]
+ }});
+}
+
+async function loadEvents(){
+ cachedEvents = await (await fetch('/api/events?limit=200')).json();
+ renderEvents();
+ renderFeed();
+}
+
+function renderFeed(){
+ const feed=document.getElementById('liveFeed');
+ feed.innerHTML='';
+
+ [...cachedEvents].reverse().slice(0,20).forEach(e=>{
+  const div=document.createElement('div');
+  div.className='feed-item';
+  div.innerHTML=`<span class="badge ${e.domain}">${e.domain}</span> ${e.eventName || ''} (${e.sourceName||'-'})`;
+  feed.appendChild(div);
+ });
+}
+
+function renderEvents(){
+ const search=document.getElementById('searchBox').value.toLowerCase();
+ const filter=document.getElementById('domainFilter').value;
+
+ const table=document.getElementById('eventsTable');
+ table.innerHTML='';
+
+ [...cachedEvents].reverse().forEach(event=>{
+
+  if(filter && event.domain!==filter) return;
+
+  const text=(event.eventId+' '+(event.sourceName||'')).toLowerCase();
+  if(search && !text.includes(search)) return;
+
+  const row=document.createElement('tr');
+
+  row.innerHTML=`
+  <td>${event.receivedAt || '-'}</td>
+  <td><span class="badge ${event.domain}">${event.domain}</span></td>
+  <td>${event.eventId || '-'}</td>
+  <td>${event.sourceName || '-'}</td>
+  <td>${event.priority || '-'}</td>
+  `;
+
+  row.onclick=()=>showEvent(event);
+  table.appendChild(row);
+ });
+}
+
+function showEvent(event){
+ document.getElementById('eventDetails').textContent=JSON.stringify(event.raw,null,2);
+
+ const kpis=document.getElementById('measurementKPIs');
+ kpis.innerHTML='';
+
+ const m=event.raw?.measurementFields?.measurements;
+
+ if(m){
+  const wrap=document.createElement('div');
+  wrap.className='kpis';
+
+  m.forEach(metric=>{
+   const d=document.createElement('div');
+   d.className='kpi';
+   d.innerHTML=`<strong>${metric.name}</strong><br>${metric.value}`;
+   wrap.appendChild(d);
+  });
+
+  kpis.appendChild(wrap);
+ }
+}
+
+document.getElementById('searchBox').addEventListener('input',renderEvents);
+document.getElementById('domainFilter').addEventListener('change',renderEvents);
+
+async function refresh(){
+ await loadStats();
+ await loadEvents();
+}
+
+refresh();
+setInterval(refresh,2000);
+</script>
 </body>
 </html>

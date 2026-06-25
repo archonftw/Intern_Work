@@ -1,16 +1,18 @@
-"""
-VES Collector + Dashboard (VES 7.x tolerant)
-- Fault + Measurement ingestion
-- Live dashboard support
-- Simple in-memory store (upgrade to DB/Kafka later)
-"""
-
 import json
 import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List
-
+from schemas import (
+    VES_SCHEMA,
+    COMMON_HEADER_SCHEMA,
+    HEARTBEAT_SCHEMA,
+    FAULT_SCHEMA,
+    MEASUREMENT_SCHEMA,
+    NOTIFICATION_SCHEMA,
+    STATE_CHANGE_SCHEMA,
+    THRESHOLD_CROSSING_ALERT_SCHEMA
+)
 from flask import Flask, request, jsonify, render_template
 from jsonschema import validate, ValidationError
 
@@ -33,62 +35,6 @@ EVENT_STORE: List[Dict[str, Any]] = []
 # Flexible VES schema (tolerant mode)
 # ────────────────────────────────────────────────
 
-COMMON_HEADER_SCHEMA = {
-    "type": "object",
-    "required": ["domain", "eventId", "eventName"],
-    "properties": {
-        "domain": {"type": "string"},
-        "eventId": {"type": "string"},
-        "eventName": {"type": "string"},
-        "sourceName": {"type": "string"},
-        "reportingEntityName": {"type": "string"},
-        "priority": {"type": "string"},
-        "vesEventListenerVersion": {"type": "string"},
-        "startEpochMicrosec": {"type": "number"},
-        "lastEpochMicrosec": {"type": "number"},
-    },
-    "additionalProperties": True
-}
-
-FAULT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "alarmCondition": {"type": "string"},
-        "eventSeverity": {"type": "string"},
-        "eventSourceType": {"type": "string"},
-        "specificProblem": {"type": "string"},
-        "vfStatus": {"type": "string"},
-        "alarmAdditionalInformation": {"type": "object"},
-    },
-    "additionalProperties": True
-}
-
-MEASUREMENT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "measurementFieldsVersion": {"type": "string"},
-        "measurementInterval": {"type": "number"},
-    },
-    "additionalProperties": True
-}
-
-VES_SCHEMA = {
-    "type": "object",
-    "required": ["event"],
-    "properties": {
-        "event": {
-            "type": "object",
-            "required": ["commonEventHeader"],
-            "properties": {
-                "commonEventHeader": COMMON_HEADER_SCHEMA,
-                "faultFields": FAULT_SCHEMA,
-                "measurementFields": MEASUREMENT_SCHEMA,
-            },
-            "additionalProperties": True
-        }
-    },
-    "additionalProperties": True
-}
 
 # ────────────────────────────────────────────────
 # Helpers
@@ -176,7 +122,7 @@ def ingest_batch():
 # Dashboard Pages
 # ────────────────────────────────────────────────
 
-@app.route("/dashboard")
+@app.route("/")
 def dashboard():
     return render_template("dashboard.html")
 
@@ -193,13 +139,100 @@ def api_events():
 
 @app.route("/api/stats")
 def stats():
+
+    fault_events = [
+        e for e in EVENT_STORE
+        if e["domain"] == "fault"
+    ]
+
+    critical_faults = 0
+    major_faults = 0
+    warning_faults = 0
+
+    for e in fault_events:
+
+        fault_fields = (
+            e["raw"]
+            .get("faultFields", {})
+        )
+
+        severity = fault_fields.get(
+            "eventSeverity",
+            ""
+        ).upper()
+
+        if severity == "CRITICAL":
+            critical_faults += 1
+
+        elif severity == "MAJOR":
+            major_faults += 1
+
+        elif severity == "WARNING":
+            warning_faults += 1
+
     return jsonify({
+
         "totalEvents": len(EVENT_STORE),
-        "faultEvents": len([e for e in EVENT_STORE if e["domain"] == "fault"]),
-        "measurementEvents": len([e for e in EVENT_STORE if e["domain"] == "measurement"]),
+
+        "faultEvents":
+            len(fault_events),
+
+        "measurementEvents":
+            len([
+                e for e in EVENT_STORE
+                if e["domain"] == "measurement"
+            ]),
+
+        "heartbeatEvents":
+            len([
+                e for e in EVENT_STORE
+                if e["domain"] == "heartbeat"
+            ]),
+
+        "notificationEvents":
+            len([
+                e for e in EVENT_STORE
+                if e["domain"] == "notification"
+            ]),
+
+        "stateChangeEvents":
+            len([
+                e for e in EVENT_STORE
+                if e["domain"] == "stateChange"
+            ]),
+
+        "thresholdEvents":
+            len([
+                e for e in EVENT_STORE
+                if e["domain"] ==
+                "thresholdCrossingAlert"
+            ]),
+
+        "criticalFaults":
+            critical_faults,
+
+        "majorFaults":
+            major_faults,
+
+        "warningFaults":
+            warning_faults
     })
 
 
+@app.route("/api/domains")
+def domains():
+
+    counts = {}
+
+    for event in EVENT_STORE:
+
+        domain = event["domain"]
+
+        counts[domain] = (
+            counts.get(domain, 0) + 1
+        )
+
+    return jsonify(counts)
 # ────────────────────────────────────────────────
 # Healthcheck
 # ────────────────────────────────────────────────
