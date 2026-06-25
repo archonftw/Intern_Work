@@ -3,81 +3,193 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VES Collector Dashboard</title>
+<title>VES Collector NOC Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Segoe UI,sans-serif}
-body{background:#0f172a;color:#fff;padding:20px}
-h1{color:#38bdf8;margin-bottom:20px}
-.dashboard{display:grid;gap:20px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px}
-.card,.panel{background:#1e293b;border-radius:12px;padding:16px}
-.card p{color:#94a3b8}
-.card h2{margin-top:8px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-.controls{display:flex;gap:10px;flex-wrap:wrap}
-input,select{padding:10px;border-radius:8px;border:none}
-table{width:100%;border-collapse:collapse}
-th,td{padding:10px;text-align:left}
-th{background:#334155}
-tr{border-bottom:1px solid #334155}
-tr:hover{background:#273449;cursor:pointer}
-pre{background:#0f172a;padding:12px;border-radius:8px;max-height:400px;overflow:auto}
-#liveFeed{max-height:250px;overflow:auto}
-.feed-item{padding:8px;border-bottom:1px solid #334155}
-.badge{padding:4px 8px;border-radius:8px;font-size:12px}
+*{margin:0;padding:0;box-sizing:border-box;font-family:Inter,Segoe UI,sans-serif}
+body{
+background:linear-gradient(135deg,#020617,#0f172a,#111827);
+color:#fff;
+padding:24px;
+min-height:100vh;
+}
+.topbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:25px;
+}
+.brand h1{
+font-size:32px;
+margin-bottom:4px;
+}
+.brand p{color:#94a3b8}
+.status{
+padding:10px 18px;
+border-radius:999px;
+border:1px solid #22c55e;
+color:#22c55e;
+font-weight:700;
+}
+.stats{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+gap:16px;
+margin-bottom:20px;
+}
+.card,.panel{
+background:rgba(30,41,59,.9);
+border:1px solid #334155;
+border-radius:16px;
+padding:18px;
+box-shadow:0 10px 25px rgba(0,0,0,.25);
+}
+.card:hover{
+transform:translateY(-3px);
+transition:.25s;
+}
+.card p{
+color:#94a3b8;
+font-size:13px;
+text-transform:uppercase;
+letter-spacing:1px;
+}
+.card h2{
+font-size:34px;
+margin-top:8px;
+}
+.main-grid{
+display:grid;
+grid-template-columns:1.2fr .8fr;
+gap:20px;
+margin-bottom:20px;
+}
+.chart-wrap{
+height:320px;
+}
+.panel h3{
+margin-bottom:15px;
+}
+#liveFeed{
+max-height:320px;
+overflow:auto;
+}
+.feed-item{
+padding:12px;
+border-bottom:1px solid #334155;
+}
+.controls{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+margin-bottom:15px;
+}
+input,select{
+padding:12px;
+border:none;
+border-radius:10px;
+background:#0f172a;
+color:#fff;
+}
+table{
+width:100%;
+border-collapse:collapse;
+}
+th{
+background:#334155;
+padding:12px;
+text-align:left;
+}
+td{
+padding:12px;
+border-bottom:1px solid #334155;
+}
+tbody tr:hover{
+background:#243244;
+cursor:pointer;
+}
+.badge{
+padding:4px 8px;
+border-radius:8px;
+font-size:12px;
+}
 .fault{background:#dc2626}
 .measurement{background:#2563eb}
 .heartbeat{background:#16a34a}
 .notification{background:#d97706}
 .stateChange{background:#7c3aed}
 .thresholdCrossingAlert{background:#e11d48}
-.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
-.kpi{background:#334155;padding:10px;border-radius:8px}
+.details{
+margin-top:20px;
+}
+pre{
+background:#020617;
+padding:15px;
+border-radius:12px;
+max-height:500px;
+overflow:auto;
+color:#7dd3fc;
+}
+.kpis{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+gap:10px;
+margin-bottom:15px;
+}
+.kpi{
+background:#334155;
+padding:10px;
+border-radius:10px;
+}
+@media(max-width:900px){
+.main-grid{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
+
+<div class="topbar">
+<div class="brand">
 <h1>📡 VES Collector Dashboard</h1>
+<p>Telecom Network Operations Center</p>
+</div>
+<div class="status">● ONLINE</div>
+</div>
 
 <div class="stats">
-<div class="card"><p>Total</p><h2 id="totalEvents">0</h2></div>
+<div class="card"><p>Total Events</p><h2 id="totalEvents">0</h2></div>
 <div class="card"><p>Fault</p><h2 id="faultEvents">0</h2></div>
 <div class="card"><p>Measurement</p><h2 id="measurementEvents">0</h2></div>
 <div class="card"><p>Heartbeat</p><h2 id="heartbeatEvents">0</h2></div>
 <div class="card"><p>Notification</p><h2 id="notificationEvents">0</h2></div>
 <div class="card"><p>State Change</p><h2 id="stateChangeEvents">0</h2></div>
 <div class="card"><p>Threshold</p><h2 id="thresholdEvents">0</h2></div>
-<div class="card"><p>Status</p><h2 style="color:#22c55e">UP</h2></div>
 </div>
 
-<div class="grid2">
+<div class="main-grid">
 <div class="panel">
 <h3>Domain Distribution</h3>
+<div class="chart-wrap">
 <canvas id="domainChart"></canvas>
 </div>
-
-<div class="panel">
-<h3>Fault Severity</h3>
-<canvas id="severityChart"></canvas>
-</div>
 </div>
 
-<div class="grid2">
 <div class="panel">
 <h3>Live Event Feed</h3>
 <div id="liveFeed"></div>
 </div>
+</div>
 
-<div class="panel">
+<div class="panel details">
 <h3>Event Details</h3>
 <div id="measurementKPIs"></div>
 <pre id="eventDetails">Select an event...</pre>
 </div>
-</div>
 
 <div class="panel">
+<h3>Event Explorer</h3>
 <div class="controls">
-<input id="searchBox" placeholder="Search event id or source">
+<input id="searchBox" placeholder="Search Event ID or Source">
 <select id="domainFilter">
 <option value="">All Domains</option>
 <option value="fault">fault</option>
@@ -88,72 +200,88 @@ pre{background:#0f172a;padding:12px;border-radius:8px;max-height:400px;overflow:
 <option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
 </select>
 </div>
-<br>
+
 <table>
 <thead>
 <tr>
-<th>Time</th><th>Domain</th><th>Event ID</th><th>Source</th><th>Priority</th>
+<th>Time</th>
+<th>Domain</th>
+<th>Event ID</th>
+<th>Source</th>
+<th>Priority</th>
 </tr>
 </thead>
 <tbody id="eventsTable"></tbody>
 </table>
 </div>
 
+
+
 <script>
-let domainChart,severityChart;
-let cachedEvents=[];
+let domainChart = null;
+let chartInitialized = false;
+let cachedEvents = [];
 
 async function loadStats(){
- const stats=await (await fetch('/api/stats')).json();
+ const stats = await (await fetch('/api/stats')).json();
 
- for(const k of ['totalEvents','faultEvents','measurementEvents','heartbeatEvents','notificationEvents','stateChangeEvents','thresholdEvents']){
-   const el=document.getElementById(k);
-   if(el && stats[k]!==undefined) el.innerText=stats[k];
+ [
+  'totalEvents',
+  'faultEvents',
+  'measurementEvents',
+  'heartbeatEvents',
+  'notificationEvents',
+  'stateChangeEvents',
+  'thresholdEvents'
+ ].forEach(k=>{
+    const el=document.getElementById(k);
+    if(el) el.innerText=stats[k]||0;
+ });
+
+ if(!chartInitialized){
+    createDomainChart(stats);
+    chartInitialized = true;
  }
-
- updateDomainChart(stats);
- updateSeverityChart(stats);
 }
 
-function updateDomainChart(stats){
+function createDomainChart(stats){
  const ctx=document.getElementById('domainChart');
- if(domainChart) domainChart.destroy();
+
 
  domainChart=new Chart(ctx,{
- type:'doughnut',
- data:{
- labels:['Fault','Measurement','Heartbeat','Notification','State Change','Threshold'],
- datasets:[{data:[
- stats.faultEvents||0,
- stats.measurementEvents||0,
- stats.heartbeatEvents||0,
- stats.notificationEvents||0,
- stats.stateChangeEvents||0,
- stats.thresholdEvents||0
- ]}]
- }});
-}
-
-function updateSeverityChart(stats){
- const ctx=document.getElementById('severityChart');
- if(severityChart) severityChart.destroy();
-
- severityChart=new Chart(ctx,{
- type:'bar',
- data:{
- labels:['Critical','Major','Warning'],
- datasets:[{data:[
- stats.criticalFaults||0,
- stats.majorFaults||0,
- stats.warningFaults||0
- ]}]
- }});
+  type:'doughnut',
+  data:{
+   labels:['Fault','Measurement','Heartbeat','Notification','State Change','Threshold'],
+   datasets:[{
+    data:[
+      stats.faultEvents||0,
+      stats.measurementEvents||0,
+      stats.heartbeatEvents||0,
+      stats.notificationEvents||0,
+      stats.stateChangeEvents||0,
+      stats.thresholdEvents||0
+    ],
+    borderWidth:0
+   }]
+  },
+  options:{
+   responsive:true,
+   maintainAspectRatio:false,
+   cutout:'70%',
+   plugins:{
+    legend:{
+      position:'bottom',
+      labels:{color:'white'}
+    }
+   }
+  }
+ });
 }
 
 async function loadEvents(){
- cachedEvents = await (await fetch('/api/events?limit=200')).json();
- renderEvents();
+ cachedEvents=await (await fetch('/api/events?limit=200')).json();
  renderFeed();
+ renderEvents();
 }
 
 function renderFeed(){
@@ -161,10 +289,12 @@ function renderFeed(){
  feed.innerHTML='';
 
  [...cachedEvents].reverse().slice(0,20).forEach(e=>{
-  const div=document.createElement('div');
-  div.className='feed-item';
-  div.innerHTML=`<span class="badge ${e.domain}">${e.domain}</span> ${e.eventName || ''} (${e.sourceName||'-'})`;
-  feed.appendChild(div);
+  feed.innerHTML+=`
+   <div class="feed-item">
+     <span class="badge ${e.domain}">${e.domain}</span>
+     ${e.eventName||'Event'}<br>
+     <small>${e.sourceName||'-'}</small>
+   </div>`;
  });
 }
 
@@ -179,17 +309,17 @@ function renderEvents(){
 
   if(filter && event.domain!==filter) return;
 
-  const text=(event.eventId+' '+(event.sourceName||'')).toLowerCase();
+  const text=((event.eventId||'')+' '+(event.sourceName||'')).toLowerCase();
   if(search && !text.includes(search)) return;
 
   const row=document.createElement('tr');
 
   row.innerHTML=`
-  <td>${event.receivedAt || '-'}</td>
-  <td><span class="badge ${event.domain}">${event.domain}</span></td>
-  <td>${event.eventId || '-'}</td>
-  <td>${event.sourceName || '-'}</td>
-  <td>${event.priority || '-'}</td>
+   <td>${event.receivedAt||'-'}</td>
+   <td><span class="badge ${event.domain}">${event.domain}</span></td>
+   <td>${event.eventId||'-'}</td>
+   <td>${event.sourceName||'-'}</td>
+   <td>${event.priority||'-'}</td>
   `;
 
   row.onclick=()=>showEvent(event);
@@ -198,21 +328,22 @@ function renderEvents(){
 }
 
 function showEvent(event){
- document.getElementById('eventDetails').textContent=JSON.stringify(event.raw,null,2);
+ document.getElementById('eventDetails').textContent =
+ JSON.stringify(event.raw,null,2);
 
  const kpis=document.getElementById('measurementKPIs');
  kpis.innerHTML='';
 
- const m=event.raw?.measurementFields?.measurements;
+ const metrics=event.raw?.measurementFields?.measurements;
 
- if(m){
+ if(metrics){
   const wrap=document.createElement('div');
   wrap.className='kpis';
 
-  m.forEach(metric=>{
+  metrics.forEach(m=>{
    const d=document.createElement('div');
    d.className='kpi';
-   d.innerHTML=`<strong>${metric.name}</strong><br>${metric.value}`;
+   d.innerHTML=`<strong>${m.name}</strong><br>${m.value}`;
    wrap.appendChild(d);
   });
 
@@ -229,7 +360,8 @@ async function refresh(){
 }
 
 refresh();
-setInterval(refresh,2000);
+setInterval(refresh,3000);
 </script>
+
 </body>
 </html>
