@@ -31,6 +31,59 @@ logger = logging.getLogger("VES-COLLECTOR")
 
 EVENT_STORE: List[Dict[str, Any]] = []
 
+
+#Schemas to validate
+DOMAIN_SCHEMAS = {
+    "fault": (
+        "faultFields",
+        FAULT_SCHEMA
+    ),
+    "heartbeat": (
+        "heartbeatFields",
+        HEARTBEAT_SCHEMA
+    ),
+    "measurement": (
+        "measurementFields",
+        MEASUREMENT_SCHEMA
+    ),
+    "notification": (
+        "notificationFields",
+        NOTIFICATION_SCHEMA
+    ),
+    "stateChange": (
+        "stateChangeFields",
+        STATE_CHANGE_SCHEMA
+    ),
+    "thresholdCrossingAlert": (
+        "thresholdCrossingAlertFields",
+        THRESHOLD_CROSSING_ALERT_SCHEMA
+    )
+}
+
+def validate_domain(event):
+
+    header = event["commonEventHeader"]
+
+    domain = header["domain"]
+
+    if domain not in DOMAIN_SCHEMAS:
+        raise ValidationError(
+            f"Unsupported VES domain '{domain}'"
+        )
+
+    field_name, schema = DOMAIN_SCHEMAS[domain]
+
+    if field_name not in event:
+        raise ValidationError(
+            f"Missing '{field_name}' for domain '{domain}'"
+        )
+
+    validate(
+        event[field_name],
+        schema
+    )
+
+
 # ────────────────────────────────────────────────
 # Helpers
 # ────────────────────────────────────────────────
@@ -79,6 +132,8 @@ def ingest_event():
 
     try:
         validate(body, VES_SCHEMA)
+        event = body["event"]
+        validate_domain(event)
     except ValidationError as e:
         return error(400, f"Schema error: {e.message}")
 
@@ -87,30 +142,6 @@ def ingest_event():
 
     return "", 202
 
-
-@app.route("/eventListener/v7/eventBatch", methods=["POST"])
-def ingest_batch():
-    if not request.is_json:
-        return error(415, "Expected JSON")
-
-    body = request.get_json()
-    if "eventList" not in body:
-        return error(400, "Missing eventList")
-
-    accepted = 0
-
-    for event in body["eventList"]:
-        try:
-            validate({"event": event}, VES_SCHEMA)
-            store_event(event)
-            accepted += 1
-        except ValidationError:
-            continue
-
-    return jsonify({
-        "accepted": accepted,
-        "total": len(body["eventList"])
-    }), 202
 
 
 # ────────────────────────────────────────────────

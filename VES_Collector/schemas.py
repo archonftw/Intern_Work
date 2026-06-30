@@ -17,42 +17,78 @@ COMMON_HEADER_SCHEMA = {
 
 HEARTBEAT_SCHEMA = {
     "type": "object",
+    "required": [
+        "heartbeatInterval"
+    ],
     "properties": {
-        "heartbeatInterval": {"type": "number"}
-    },
-    "additionalProperties": True
+        "heartbeatInterval": {
+            "type": "number"
+        }
+    }
 }
 
 FAULT_SCHEMA = {
     "type": "object",
+    "required": [
+        "alarmCondition",
+        "eventSeverity",
+        "specificProblem"
+    ],
     "properties": {
-        "alarmCondition": {"type": "string"},
-        "alarmInterfaceA": {"type": "string"},
-        "eventSeverity": {"type": "string"},
-        "specificProblem": {"type": "string"},
-        "faultFieldsVersion": {"type": "string"}
+        "alarmCondition": {
+            "type": "string"
+        },
+        "alarmInterfaceA": {
+            "type": "string"
+        },
+        "eventSeverity": {
+            "type": "string",
+            "enum": [
+                "CRITICAL",
+                "MAJOR",
+                "MINOR",
+                "WARNING",
+                "NORMAL"
+            ]
+        },
+        "specificProblem": {
+            "type": "string"
+        },
+        "faultFieldsVersion": {
+            "type": "string"
+        }
     },
     "additionalProperties": True
 }
 
 MEASUREMENT_SCHEMA = {
     "type": "object",
+    "required": [
+        "measurementInterval",
+        "measurements"
+    ],
     "properties": {
-        "measurementInterval": {"type": "number"},
+        "measurementInterval": {
+            "type": "number"
+        },
         "measurements": {
             "type": "array",
+            "minItems": 1,
             "items": {
                 "type": "object",
+                "required": [
+                    "name",
+                    "value"
+                ],
                 "properties": {
-                    "name": {"type": "string"},
+                    "name": {
+                        "type": "string"
+                    },
                     "value": {}
-                },
-                "required": ["name", "value"],
-                "additionalProperties": True
+                }
             }
         }
-    },
-    "additionalProperties": True
+    }
 }
 
 NOTIFICATION_SCHEMA = {
@@ -93,17 +129,10 @@ VES_SCHEMA = {
             "type": "object",
             "required": ["commonEventHeader"],
             "properties": {
-                "commonEventHeader": COMMON_HEADER_SCHEMA,
-                "heartbeatFields": HEARTBEAT_SCHEMA,
-                "faultFields": FAULT_SCHEMA,
-                "measurementFields": MEASUREMENT_SCHEMA,
-                "notificationFields": NOTIFICATION_SCHEMA,
-                "stateChangeFields": STATE_CHANGE_SCHEMA,
-                "thresholdCrossingAlertFields":
-                    THRESHOLD_CROSSING_ALERT_SCHEMA
+                "commonEventHeader": COMMON_HEADER_SCHEMA
             },
             "additionalProperties": True
         }
     },
-    "additionalProperties": True
+    "additionalProperties": False
 }

@@ -10,4 +10,5 @@ Endpoints:
     -> /healthcheck  
     -> /api/stats
     -> /api/events
+    -> /healthcheck
 
