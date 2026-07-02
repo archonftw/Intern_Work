@@ -11,7 +11,9 @@ from schemas import (
     MEASUREMENT_SCHEMA,
     NOTIFICATION_SCHEMA,
     STATE_CHANGE_SCHEMA,
-    THRESHOLD_CROSSING_ALERT_SCHEMA
+    THRESHOLD_CROSSING_ALERT_SCHEMA,
+    PNF_REGISTRATION_SCHEMA,
+    STND_DEFINED_SCHEMA
 )
 from flask import Flask, request, jsonify, render_template
 from jsonschema import validate, ValidationError
@@ -30,7 +32,8 @@ logger = logging.getLogger("VES-COLLECTOR")
 # ────────────────────────────────────────────────
 
 EVENT_STORE: List[Dict[str, Any]] = []
-
+# Current state of every discovered network device
+DEVICE_STORE: Dict[str, Dict[str, Any]] = {}
 
 #Schemas to validate
 DOMAIN_SCHEMAS = {
@@ -38,25 +41,42 @@ DOMAIN_SCHEMAS = {
         "faultFields",
         FAULT_SCHEMA
     ),
+
     "heartbeat": (
         "heartbeatFields",
         HEARTBEAT_SCHEMA
     ),
+
     "measurement": (
         "measurementFields",
         MEASUREMENT_SCHEMA
     ),
+
     "notification": (
         "notificationFields",
         NOTIFICATION_SCHEMA
     ),
+
     "stateChange": (
         "stateChangeFields",
         STATE_CHANGE_SCHEMA
     ),
+
     "thresholdCrossingAlert": (
         "thresholdCrossingAlertFields",
         THRESHOLD_CROSSING_ALERT_SCHEMA
+    ),
+
+    # NEW
+    "pnfRegistration": (
+        "pnfRegistrationFields",
+        PNF_REGISTRATION_SCHEMA
+    ),
+
+    # NEW
+    "stndDefined": (
+        "stndDefinedFields",
+        STND_DEFINED_SCHEMA
     )
 }
 
@@ -83,10 +103,193 @@ def validate_domain(event):
         schema
     )
 
+# ────────────────────────────────────────────────
+# Event Processing
+# ────────────────────────────────────────────────
+
+def process_pnf(event):
+
+    header = event["commonEventHeader"]
+
+    logger.info(
+        "[PNF REGISTRATION] Device=%s",
+        header.get("reportingEntityName", "UNKNOWN")
+    )
+
+
+def handle_file_ready(event):
+
+    logger.info(
+        "[FILE READY] %s",
+        event["commonEventHeader"]["eventName"]
+    )
+
+
+def handle_o1_registration(event):
+
+    logger.info(
+        "[O1 PNF REGISTRATION] %s",
+        event["commonEventHeader"]["eventName"]
+    )
+
+
+def handle_threshold(event):
+
+    logger.info(
+        "[STND THRESHOLD ALERT] %s",
+        event["commonEventHeader"]["eventName"]
+    )
+
+
+def handle_threshold_clear(event):
+
+    logger.info(
+        "[THRESHOLD CLEARED] %s",
+        event["commonEventHeader"]["eventName"]
+    )
+
+
+def process_stnd(event):
+
+    event_name = (
+        event["commonEventHeader"]
+        .get("eventName", "")
+        .lower()
+    )
+
+    if "file-ready" in event_name:
+        handle_file_ready(event)
+
+    elif "notifypnfregistration" in event_name:
+        handle_o1_registration(event)
+
+    elif "thresholdcrossingalert" in event_name:
+        handle_threshold(event)
+
+    elif "cleared" in event_name:
+        handle_threshold_clear(event)
+
+    else:
+        logger.info(
+            "[UNKNOWN STND EVENT] %s",
+            event_name
+        )
+
+
+def process_event(event):
+
+    domain = event["commonEventHeader"]["domain"]
+
+    if domain == "pnfRegistration":
+        process_pnf(event)
+
+    elif domain == "stndDefined":
+        process_stnd(event)
 
 # ────────────────────────────────────────────────
 # Helpers
 # ────────────────────────────────────────────────
+
+def get_device_id(event: Dict[str, Any]) -> str:
+
+    header = event.get("commonEventHeader", {})
+
+    return (
+        header.get("reportingEntityName")
+        or header.get("sourceName")
+        or "UNKNOWN_DEVICE"
+    )
+def get_or_create_device(device_id: str):
+
+    if device_id not in DEVICE_STORE:
+
+        DEVICE_STORE[device_id] = {
+
+            "deviceId": device_id,
+
+            "status": "ONLINE",
+
+            "registered": False,
+
+            "vendor": None,
+
+            "model": None,
+
+            "lastSeen": None,
+
+            "eventCount": 0,
+
+            "heartbeat": None,
+
+            "faults": [],
+
+            "measurements": [],
+
+            "notifications": [],
+
+            "stateChanges": [],
+
+            "thresholds": [],
+
+            "files": [],
+
+            "events": []
+        }
+
+    return DEVICE_STORE[device_id]
+def update_device(event: Dict[str, Any]):
+
+    device_id = get_device_id(event)
+
+    device = get_or_create_device(device_id)
+
+    domain = event["commonEventHeader"]["domain"]
+
+    device["lastSeen"] = datetime.now(timezone.utc).isoformat()
+
+    device["eventCount"] += 1
+
+    device["events"].append(event)
+
+    if len(device["events"]) > 100:
+        device["events"] = device["events"][-100:]
+
+    if domain == "heartbeat":
+
+        device["heartbeat"] = event
+
+    elif domain == "measurement":
+
+        device["measurements"].append(event)
+
+        if len(device["measurements"]) > 20:
+            device["measurements"] = device["measurements"][-20:]
+
+    elif domain == "fault":
+
+        device["faults"].append(event)
+
+    elif domain == "notification":
+
+        device["notifications"].append(event)
+
+    elif domain == "stateChange":
+
+        device["stateChanges"].append(event)
+
+    elif domain == "thresholdCrossingAlert":
+
+        device["thresholds"].append(event)
+
+    elif domain == "pnfRegistration":
+
+        device["registered"] = True
+
+        fields = event.get("pnfRegistrationFields", {})
+
+        device["vendor"] = fields.get("vendorName")
+
+        device["model"] = fields.get("modelNumber")
 
 def store_event(event: Dict[str, Any]) -> Dict[str, Any]:
     header = event.get("commonEventHeader", {})
@@ -134,10 +337,13 @@ def ingest_event():
         validate(body, VES_SCHEMA)
         event = body["event"]
         validate_domain(event)
+        # Process event before storing
+        process_event(event)
     except ValidationError as e:
         return error(400, f"Schema error: {e.message}")
 
     event = body["event"]
+    update_device(event)
     store_event(event)
 
     return "", 202
@@ -162,6 +368,55 @@ def api_events():
     limit = int(request.args.get("limit", 100))
     return jsonify(EVENT_STORE[-limit:])
 
+@app.route("/api/devices")
+def api_devices():
+
+    devices = []
+
+    for device in DEVICE_STORE.values():
+
+        devices.append({
+
+            "deviceId": device["deviceId"],
+
+            "status": device["status"],
+
+            "registered": device["registered"],
+
+            "vendor": device["vendor"],
+
+            "model": device["model"],
+
+            "lastSeen": device["lastSeen"],
+
+            "eventCount": device["eventCount"],
+
+            "faultCount": len(device["faults"]),
+
+            "thresholdCount": len(device["thresholds"])
+        })
+
+    return jsonify(devices)
+
+@app.route("/api/device/<device_id>")
+def api_device(device_id):
+
+    device = DEVICE_STORE.get(device_id)
+
+    if device is None:
+        return error(404, "Device not found")
+
+    return jsonify(device)
+
+@app.route("/api/device/<device_id>/events")
+def api_device_events(device_id):
+
+    device = DEVICE_STORE.get(device_id)
+
+    if device is None:
+        return error(404, "Device not found")
+
+    return jsonify(device["events"])
 
 @app.route("/api/stats")
 def stats():
@@ -232,6 +487,17 @@ def stats():
                 e for e in EVENT_STORE
                 if e["domain"] ==
                 "thresholdCrossingAlert"
+            ]),
+        "pnfRegistrationEvents":
+            len([
+                e for e in EVENT_STORE
+                if e["domain"] == "pnfRegistration"
+            ]),
+        
+        "stndDefinedEvents":
+            len([
+                e for e in EVENT_STORE
+                if e["domain"] == "stndDefined"
             ]),
 
         "criticalFaults":

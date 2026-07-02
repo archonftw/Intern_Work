@@ -3,364 +3,1084 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VES Collector NOC Dashboard</title>
+<title>VES Collector NOC Console</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Inter,Segoe UI,sans-serif}
-body{
-background:linear-gradient(135deg,#020617,#0f172a,#111827);
-color:#fff;
-padding:24px;
-min-height:100vh;
-}
-.topbar{
-display:flex;
-justify-content:space-between;
-align-items:center;
-margin-bottom:25px;
-}
-.brand h1{
-font-size:32px;
-margin-bottom:4px;
-}
-.brand p{color:#94a3b8}
-.status{
-padding:10px 18px;
-border-radius:999px;
-border:1px solid #22c55e;
-color:#22c55e;
-font-weight:700;
-}
-.stats{
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
-gap:16px;
-margin-bottom:20px;
-}
-.card,.panel{
-background:rgba(30,41,59,.9);
-border:1px solid #334155;
-border-radius:16px;
-padding:18px;
-box-shadow:0 10px 25px rgba(0,0,0,.25);
-}
-.card:hover{
-transform:translateY(-3px);
-transition:.25s;
-}
-.card p{
-color:#94a3b8;
-font-size:13px;
-text-transform:uppercase;
-letter-spacing:1px;
-}
-.card h2{
-font-size:34px;
-margin-top:8px;
-}
-.main-grid{
-display:grid;
-grid-template-columns:1.2fr .8fr;
-gap:20px;
-margin-bottom:20px;
-}
-.chart-wrap{
-height:320px;
-}
-.panel h3{
-margin-bottom:15px;
-}
-#liveFeed{
-max-height:320px;
-overflow:auto;
-}
-.feed-item{
-padding:12px;
-border-bottom:1px solid #334155;
-}
-.controls{
-display:flex;
-gap:10px;
-flex-wrap:wrap;
-margin-bottom:15px;
-}
-input,select{
-padding:12px;
-border:none;
-border-radius:10px;
-background:#0f172a;
-color:#fff;
-}
-table{
-width:100%;
-border-collapse:collapse;
-}
-th{
-background:#334155;
-padding:12px;
-text-align:left;
-}
-td{
-padding:12px;
-border-bottom:1px solid #334155;
-}
-tbody tr:hover{
-background:#243244;
-cursor:pointer;
-}
-.badge{
-padding:4px 8px;
-border-radius:8px;
-font-size:12px;
-}
-.fault{background:#dc2626}
-.measurement{background:#2563eb}
-.heartbeat{background:#16a34a}
-.notification{background:#d97706}
-.stateChange{background:#7c3aed}
-.thresholdCrossingAlert{background:#e11d48}
-.details{
-margin-top:20px;
-}
-pre{
-background:#020617;
-padding:15px;
-border-radius:12px;
-max-height:500px;
-overflow:auto;
-color:#7dd3fc;
-}
-.kpis{
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
-gap:10px;
-margin-bottom:15px;
-}
-.kpi{
-background:#334155;
-padding:10px;
-border-radius:10px;
-}
-@media(max-width:900px){
-.main-grid{grid-template-columns:1fr}
-}
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
-<div class="topbar">
-<div class="brand">
-<h1>📡 VES Collector Dashboard</h1>
-<p>Telecom Network Operations Center</p>
-</div>
-<div class="status">● ONLINE</div>
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <h1>VES Collector</h1>
+      <p>NOC Console &middot; v7.x</p>
+    </div>
+    <div class="conn-status" id="connStatus">CONNECTED</div>
+    <ul class="nav-list">
+      <li><button class="nav-item active" data-view="overview"><span class="nav-icon">&#9635;</span><span class="nav-label">Overview</span></button></li>
+      <li><button class="nav-item" data-view="alarms"><span class="nav-icon">&#9650;</span><span class="nav-label">Alarms</span><span class="nav-badge alert" id="navAlarmBadge">0</span></button></li>
+      <li><button class="nav-item" data-view="devices"><span class="nav-icon">&#9637;</span><span class="nav-label">Devices</span><span class="nav-badge" id="navDeviceBadge">0</span></button></li>
+      <li><button class="nav-item" data-view="analytics"><span class="nav-icon">&#8767;</span><span class="nav-label">Analytics</span></button></li>
+      <li><button class="nav-item" data-view="explorer"><span class="nav-icon">&#9638;</span><span class="nav-label">Event Explorer</span></button></li>
+      <li><button class="nav-item" data-view="system"><span class="nav-icon">&#9678;</span><span class="nav-label">System Health</span></button></li>
+    </ul>
+    <div class="sidebar-foot">Single-instance collector<br>In-memory store (session only)</div>
+  </aside>
+
+  <div class="main">
+    <div class="main-topbar">
+      <button class="hamburger" id="hamburger">&#9776;</button>
+      <div>
+        <p class="view-title" id="viewTitle">Overview</p>
+        <p class="view-subtitle" id="viewSubtitle">Live network event summary</p>
+      </div>
+      <input class="global-search" id="globalSearch" placeholder="Search events or devices &middot; press /">
+      <span class="topbar-clock" id="clock">--:--:--</span>
+    </div>
+
+    <div class="views">
+
+      <!-- ============================= OVERVIEW ============================= -->
+      <section class="view-panel active" id="view-overview">
+
+        <div class="stats">
+          <div class="card"><p>Total Events</p><h2 id="totalEvents">0</h2></div>
+          <div class="card"><p>Fault</p><h2 id="faultEvents">0</h2></div>
+          <div class="card"><p>Measurement</p><h2 id="measurementEvents">0</h2></div>
+          <div class="card"><p>Heartbeat</p><h2 id="heartbeatEvents">0</h2></div>
+          <div class="card"><p>Notification</p><h2 id="notificationEvents">0</h2></div>
+          <div class="card"><p>State Change</p><h2 id="stateChangeEvents">0</h2></div>
+          <div class="card"><p>Threshold</p><h2 id="thresholdEvents">0</h2></div>
+          <div class="card"><p>PNF Registration</p><h2 id="pnfRegistrationEvents">0</h2></div>
+          <div class="card"><p>STND Events</p><h2 id="stndDefinedEvents">0</h2></div>
+        </div>
+
+        <div class="panel">
+          <h3>Active Alarms <span class="count-pill crit" id="overviewAlarmPill">0 open</span></h3>
+          <div class="alarm-summary-strip" id="overviewAlarmStrip"></div>
+        </div>
+
+        <div class="main-grid">
+          <div class="panel">
+            <h3>Domain Distribution</h3>
+            <div class="chart-wrap"><canvas id="domainChart"></canvas></div>
+          </div>
+          <div class="panel">
+            <h3>Live Event Feed</h3>
+            <div id="liveFeed"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Devices <span class="count-pill" id="overviewDevicePill">0 connected</span>
+            <button class="btn small" data-goto="devices">View all &rarr;</button>
+          </h3>
+          <div class="device-grid" id="overviewDeviceGrid"></div>
+        </div>
+
+      </section>
+
+      <!-- ============================== ALARMS =============================== -->
+      <section class="view-panel" id="view-alarms">
+
+        <div class="panel">
+          <h3>Alarm Correlation</h3>
+          <p class="panel-note">Correlated client-side from fault &amp; stndDefined threshold events (grouped by device + condition). Not yet persisted server-side &mdash; acknowledgements live in this browser only until a backend alarm store exists.</p>
+
+          <div class="alarm-summary-strip" id="alarmSummaryStrip"></div>
+
+          <div class="controls">
+            <input id="alarmSearch" placeholder="Search device or condition">
+            <select id="alarmSeverityFilter">
+              <option value="">All Severities</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="MAJOR">Major</option>
+              <option value="WARNING">Warning</option>
+              <option value="CLEARED">Cleared</option>
+            </select>
+            <select id="alarmAckFilter">
+              <option value="unacked">Unacknowledged only</option>
+              <option value="all">All alarms</option>
+              <option value="acked">Acknowledged only</option>
+            </select>
+            <button class="btn" id="clearAcksBtn">Clear all acks</button>
+          </div>
+
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Severity</th><th>Device</th><th>Condition</th><th>Domain</th>
+                  <th>First Seen</th><th>Last Seen</th><th>Occurrences</th><th>Ack</th>
+                </tr>
+              </thead>
+              <tbody id="alarmsTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================== DEVICES =============================== -->
+      <section class="view-panel" id="view-devices">
+
+        <div class="panel">
+          <h3>Devices <span class="count-pill" id="devicesCountPill">0 connected</span></h3>
+          <div class="controls">
+            <input id="deviceSearch" placeholder="Search device ID, vendor, or model">
+            <select id="deviceStatusFilter">
+              <option value="">All Statuses</option>
+              <option value="live">Live</option>
+              <option value="idle">Idle</option>
+              <option value="stale">Stale / Offline</option>
+            </select>
+            <select id="deviceRegFilter">
+              <option value="">Registered &amp; Unregistered</option>
+              <option value="yes">Registered only</option>
+              <option value="no">Unregistered only</option>
+            </select>
+          </div>
+          <div class="device-grid" id="devicesGrid"></div>
+        </div>
+
+      </section>
+
+      <!-- ============================== ANALYTICS =============================== -->
+      <section class="view-panel" id="view-analytics">
+
+        <div class="panel">
+          <h3>KPI Trends</h3>
+          <p class="panel-note">Plots the last measurement events reported by the selected device (up to the most recent 20 kept per device).</p>
+
+          <div class="analytics-controls">
+            <select id="analyticsDeviceSelect"></select>
+            <div class="metric-toggle-group" id="metricToggleGroup"></div>
+          </div>
+
+          <div class="trend-chart-wrap"><canvas id="trendChart"></canvas></div>
+        </div>
+
+        <div class="panel">
+          <h3>Latest KPI Snapshot</h3>
+          <div class="kpis" id="latestKpiSnapshot"></div>
+        </div>
+
+      </section>
+
+      <!-- ============================== EXPLORER =============================== -->
+      <section class="view-panel" id="view-explorer">
+
+        <div class="panel details">
+          <h3>Event Details</h3>
+          <div id="measurementKPIs"></div>
+          <pre id="eventDetails">Select an event from the table below...</pre>
+        </div>
+
+        <div class="panel">
+          <h3>Event Explorer</h3>
+          <div class="controls">
+            <input id="searchBox" placeholder="Search Event ID or Source">
+            <select id="domainFilter">
+              <option value="">All Domains</option>
+              <option value="fault">fault</option>
+              <option value="measurement">measurement</option>
+              <option value="heartbeat">heartbeat</option>
+              <option value="notification">notification</option>
+              <option value="stateChange">stateChange</option>
+              <option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
+              <option value="pnfRegistration">pnfRegistration</option>
+              <option value="stndDefined">stndDefined</option>
+            </select>
+            <select id="deviceFilter"><option value="">All Devices</option></select>
+            <button class="btn" id="exportCsvBtn">Export CSV</button>
+          </div>
+
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th data-sort="receivedAt">Time <span class="sort-arrow"></span></th>
+                  <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
+                  <th data-sort="eventId">Event ID <span class="sort-arrow"></span></th>
+                  <th data-sort="sourceName">Source <span class="sort-arrow"></span></th>
+                  <th data-sort="priority">Priority <span class="sort-arrow"></span></th>
+                </tr>
+              </thead>
+              <tbody id="eventsTable"></tbody>
+            </table>
+          </div>
+          <div class="table-foot">
+            <span id="explorerCount">0 events shown</span>
+            <span>Buffer holds last 200 events (backend limit)</span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================== SYSTEM =============================== -->
+      <section class="view-panel" id="view-system">
+
+        <div class="panel">
+          <h3>Pipeline Health</h3>
+          <p class="panel-note">Computed client-side from API responses &mdash; there's no queue or multi-instance metrics yet, so this reflects this single collector process only.</p>
+          <div class="health-grid" id="healthGrid"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Domain Breakdown</h3>
+          <div class="table-scroll">
+            <table id="domainBreakdownTable">
+              <thead><tr><th>Domain</th><th>Count</th><th>Share</th><th></th></tr></thead>
+              <tbody id="domainBreakdownBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+  </div>
 </div>
 
-<div class="stats">
-<div class="card"><p>Total Events</p><h2 id="totalEvents">0</h2></div>
-<div class="card"><p>Fault</p><h2 id="faultEvents">0</h2></div>
-<div class="card"><p>Measurement</p><h2 id="measurementEvents">0</h2></div>
-<div class="card"><p>Heartbeat</p><h2 id="heartbeatEvents">0</h2></div>
-<div class="card"><p>Notification</p><h2 id="notificationEvents">0</h2></div>
-<div class="card"><p>State Change</p><h2 id="stateChangeEvents">0</h2></div>
-<div class="card"><p>Threshold</p><h2 id="thresholdEvents">0</h2></div>
-</div>
+<div class="toast-stack" id="toastStack"></div>
 
-<div class="main-grid">
-<div class="panel">
-<h3>Domain Distribution</h3>
-<div class="chart-wrap">
-<canvas id="domainChart"></canvas>
+<!-- Device detail modal -->
+<div class="modal-backdrop" id="deviceModalBackdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalDeviceId">DEVICE</h3>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
 </div>
-</div>
-
-<div class="panel">
-<h3>Live Event Feed</h3>
-<div id="liveFeed"></div>
-</div>
-</div>
-
-<div class="panel details">
-<h3>Event Details</h3>
-<div id="measurementKPIs"></div>
-<pre id="eventDetails">Select an event...</pre>
-</div>
-
-<div class="panel">
-<h3>Event Explorer</h3>
-<div class="controls">
-<input id="searchBox" placeholder="Search Event ID or Source">
-<select id="domainFilter">
-<option value="">All Domains</option>
-<option value="fault">fault</option>
-<option value="measurement">measurement</option>
-<option value="heartbeat">heartbeat</option>
-<option value="notification">notification</option>
-<option value="stateChange">stateChange</option>
-<option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
-</select>
-</div>
-
-<table>
-<thead>
-<tr>
-<th>Time</th>
-<th>Domain</th>
-<th>Event ID</th>
-<th>Source</th>
-<th>Priority</th>
-</tr>
-</thead>
-<tbody id="eventsTable"></tbody>
-</table>
-</div>
-
-
 
 <script>
-let domainChart = null;
-let chartInitialized = false;
+/* ============================================================
+   State
+   ============================================================ */
 let cachedEvents = [];
+let cachedDevices = [];
+let domainChart = null, trendChart = null, modalChart = null;
+let chartInitialized = false;
+let currentView = 'overview';
+let explorerSort = { key:'receivedAt', dir:'desc' };
+let ackedAlarms = new Set(JSON.parse(localStorage.getItem('vesAckedAlarms') || '[]'));
+let toastedEventIds = new Set();
+let firstLoad = true;
+let selectedAnalyticsDevice = null;
+let selectedMetrics = new Set(['CPU_Usage','Memory_Usage']);
+const ALL_METRICS = ['CPU_Usage','Memory_Usage','Connected_UEs','Throughput_Mbps'];
 
+const VIEW_META = {
+  overview:  { title:'Overview',        subtitle:'Live network event summary' },
+  alarms:    { title:'Alarms',          subtitle:'Correlated fault & threshold conditions' },
+  devices:   { title:'Devices',         subtitle:'All reporting network functions' },
+  analytics: { title:'Analytics',       subtitle:'Per-device KPI trends over time' },
+  explorer:  { title:'Event Explorer',  subtitle:'Raw event stream, searchable & sortable' },
+  system:    { title:'System Health',   subtitle:'Collector pipeline diagnostics' },
+};
+
+/* ============================================================
+   Navigation
+   ============================================================ */
+function switchView(view){
+  currentView = view;
+  document.querySelectorAll('.view-panel').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===view));
+  document.getElementById('viewTitle').textContent = VIEW_META[view].title;
+  document.getElementById('viewSubtitle').textContent = VIEW_META[view].subtitle;
+  document.getElementById('sidebar').classList.remove('open');
+
+  if(view==='analytics') renderAnalytics();
+}
+
+document.querySelectorAll('.nav-item').forEach(btn=>{
+  btn.addEventListener('click', ()=>switchView(btn.dataset.view));
+});
+document.querySelectorAll('[data-goto]').forEach(btn=>{
+  btn.addEventListener('click', ()=>switchView(btn.dataset.goto));
+});
+document.getElementById('hamburger').addEventListener('click', ()=>{
+  document.getElementById('sidebar').classList.toggle('open');
+});
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='/' && document.activeElement.tagName!=='INPUT' && document.activeElement.tagName!=='SELECT'){
+    e.preventDefault();
+    document.getElementById('globalSearch').focus();
+  }
+});
+
+document.getElementById('globalSearch').addEventListener('input', (e)=>{
+  const val = e.target.value;
+  if(val.length>0 && currentView!=='explorer' && currentView!=='devices'){
+    switchView('explorer');
+  }
+  document.getElementById('searchBox').value = val;
+  document.getElementById('deviceSearch').value = val;
+  renderEvents();
+  renderDevices();
+});
+
+/* ============================================================
+   Clock
+   ============================================================ */
+function tickClock(){
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+/* ============================================================
+   Fetch helper (tracks connection status)
+   ============================================================ */
+async function safeFetch(url){
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    setConnStatus(true);
+    return await res.json();
+  }catch(err){
+    setConnStatus(false);
+    throw err;
+  }
+}
+
+function setConnStatus(up){
+  const el = document.getElementById('connStatus');
+  if(up){
+    el.textContent = 'CONNECTED';
+    el.classList.remove('down');
+  } else {
+    el.textContent = 'DISCONNECTED';
+    el.classList.add('down');
+  }
+}
+
+/* ============================================================
+   Stats + domain chart
+   ============================================================ */
 async function loadStats(){
- const stats = await (await fetch('/api/stats')).json();
+ let stats;
+ try{ stats = await safeFetch('/api/stats'); } catch(e){ return; }
 
- [
-  'totalEvents',
-  'faultEvents',
-  'measurementEvents',
-  'heartbeatEvents',
-  'notificationEvents',
-  'stateChangeEvents',
-  'thresholdEvents'
+ ['totalEvents','faultEvents','measurementEvents','heartbeatEvents','notificationEvents',
+  'stateChangeEvents','thresholdEvents','pnfRegistrationEvents','stndDefinedEvents'
  ].forEach(k=>{
     const el=document.getElementById(k);
     if(el) el.innerText=stats[k]||0;
  });
 
+ const data=[
+   stats.faultEvents||0, stats.measurementEvents||0, stats.heartbeatEvents||0,
+   stats.notificationEvents||0, stats.stateChangeEvents||0, stats.thresholdEvents||0,
+   stats.pnfRegistrationEvents||0, stats.stndDefinedEvents||0
+ ];
+
  if(!chartInitialized){
-    createDomainChart(stats);
+    createDomainChart(data);
     chartInitialized = true;
+ } else {
+    domainChart.data.datasets[0].data = data;
+    domainChart.update();
  }
+
+ renderDomainBreakdown(stats);
 }
 
-function createDomainChart(stats){
+function createDomainChart(data){
  const ctx=document.getElementById('domainChart');
-
-
  domainChart=new Chart(ctx,{
   type:'doughnut',
   data:{
-   labels:['Fault','Measurement','Heartbeat','Notification','State Change','Threshold'],
+   labels:['Fault','Measurement','Heartbeat','Notification','State Change','Threshold','PNF Registration','STND'],
    datasets:[{
-    data:[
-      stats.faultEvents||0,
-      stats.measurementEvents||0,
-      stats.heartbeatEvents||0,
-      stats.notificationEvents||0,
-      stats.stateChangeEvents||0,
-      stats.thresholdEvents||0
-    ],
-    borderWidth:0
+    data:data,
+    backgroundColor:['#ff4d5e','#22d3c7','#34d399','#9d8cff','#ffd23f','#ff9f43','#6cc3ff','#f0a8ff'],
+    borderColor:'#10151c',
+    borderWidth:2
    }]
   },
   options:{
-   responsive:true,
-   maintainAspectRatio:false,
-   cutout:'70%',
-   plugins:{
-    legend:{
-      position:'bottom',
-      labels:{color:'white'}
-    }
-   }
+   responsive:true, maintainAspectRatio:false, cutout:'70%',
+   plugins:{ legend:{ position:'bottom', labels:{ color:'#8b96a6', font:{ family:'IBM Plex Sans', size:11 }, boxWidth:10, padding:12 } } }
   }
  });
 }
 
+function renderDomainBreakdown(stats){
+ const body=document.getElementById('domainBreakdownBody');
+ const rows=[
+   ['fault', stats.faultEvents], ['measurement', stats.measurementEvents],
+   ['heartbeat', stats.heartbeatEvents], ['notification', stats.notificationEvents],
+   ['stateChange', stats.stateChangeEvents], ['thresholdCrossingAlert', stats.thresholdEvents],
+   ['pnfRegistration', stats.pnfRegistrationEvents], ['stndDefined', stats.stndDefinedEvents],
+ ];
+ const total = stats.totalEvents || 1;
+ body.innerHTML = rows.map(([domain,count])=>{
+   const pct = Math.round(((count||0)/total)*1000)/10;
+   return `<tr>
+     <td><span class="badge ${domain}">${domain}</span></td>
+     <td>${count||0}</td>
+     <td>${pct}%</td>
+     <td style="width:120px"><div style="background:var(--border);height:5px;border-radius:3px;overflow:hidden;"><div style="width:${pct}%;background:var(--accent);height:100%;"></div></div></td>
+   </tr>`;
+ }).join('');
+
+ // system health cards
+ renderHealthGrid(stats);
+}
+
+/* ============================================================
+   Events (shared cache) + Explorer
+   ============================================================ */
 async function loadEvents(){
- cachedEvents=await (await fetch('/api/events?limit=200')).json();
+ try{
+   cachedEvents = await safeFetch('/api/events?limit=200');
+ } catch(e){ return; }
  renderFeed();
  renderEvents();
+ populateDeviceFilter();
+ checkForCriticalToasts();
 }
 
 function renderFeed(){
  const feed=document.getElementById('liveFeed');
- feed.innerHTML='';
-
- [...cachedEvents].reverse().slice(0,20).forEach(e=>{
-  feed.innerHTML+=`
+ const recent=[...cachedEvents].reverse().slice(0,20);
+ if(recent.length===0){ feed.innerHTML='<div class="empty-state">Waiting for events...</div>'; return; }
+ feed.innerHTML = recent.map(e=>`
    <div class="feed-item">
      <span class="badge ${e.domain}">${e.domain}</span>
-     ${e.eventName||'Event'}<br>
+     ${e.eventName || e.domain}<br>
      <small>${e.sourceName||'-'}</small>
-   </div>`;
- });
+   </div>`).join('');
 }
 
+function populateDeviceFilter(){
+ const select=document.getElementById('deviceFilter');
+ const current=select.value;
+ const ids=[...new Set(cachedEvents.map(e=>e.sourceName).filter(Boolean))].sort();
+ select.innerHTML='<option value="">All Devices</option>' + ids.map(id=>`<option value="${id}">${id}</option>`).join('');
+ select.value = ids.includes(current) ? current : '';
+}
+
+document.querySelectorAll('#view-explorer thead th[data-sort]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key=th.dataset.sort;
+    if(explorerSort.key===key){ explorerSort.dir = explorerSort.dir==='asc'?'desc':'asc'; }
+    else { explorerSort = { key, dir:'asc' }; }
+    renderEvents();
+  });
+});
+
 function renderEvents(){
- const search=document.getElementById('searchBox').value.toLowerCase();
+ const search=(document.getElementById('searchBox').value||'').toLowerCase();
  const filter=document.getElementById('domainFilter').value;
+ const deviceFilter=document.getElementById('deviceFilter').value;
+
+ document.querySelectorAll('#view-explorer thead th[data-sort]').forEach(th=>{
+   th.classList.toggle('sorted', th.dataset.sort===explorerSort.key);
+   th.querySelector('.sort-arrow').textContent = th.dataset.sort===explorerSort.key ? (explorerSort.dir==='asc'?'\u2191':'\u2193') : '';
+ });
+
+ let rows = cachedEvents.filter(event=>{
+  if(filter && event.domain!==filter) return false;
+  if(deviceFilter && event.sourceName!==deviceFilter) return false;
+  const text=((event.eventId||'')+' '+(event.sourceName||'')).toLowerCase();
+  if(search && !text.includes(search)) return false;
+  return true;
+ });
+
+ rows.sort((a,b)=>{
+   let av=a[explorerSort.key]||'', bv=b[explorerSort.key]||'';
+   if(av<bv) return explorerSort.dir==='asc'?-1:1;
+   if(av>bv) return explorerSort.dir==='asc'?1:-1;
+   return 0;
+ });
 
  const table=document.getElementById('eventsTable');
- table.innerHTML='';
+ if(rows.length===0){
+   table.innerHTML='<tr><td colspan="5" class="empty-state">No matching events</td></tr>';
+ } else {
+   table.innerHTML = rows.map(event=>`
+     <tr data-id="${event.collectorId}">
+       <td>${event.receivedAt||'-'}</td>
+       <td><span class="badge ${event.domain}">${event.domain}</span></td>
+       <td>${event.eventId||'-'}</td>
+       <td>${event.sourceName||'-'}</td>
+       <td>${event.priority||'-'}</td>
+     </tr>`).join('');
+   [...table.children].forEach((row,i)=>{
+     row.addEventListener('click', ()=>showEvent(rows[i]));
+   });
+ }
 
- [...cachedEvents].reverse().forEach(event=>{
-
-  if(filter && event.domain!==filter) return;
-
-  const text=((event.eventId||'')+' '+(event.sourceName||'')).toLowerCase();
-  if(search && !text.includes(search)) return;
-
-  const row=document.createElement('tr');
-
-  row.innerHTML=`
-   <td>${event.receivedAt||'-'}</td>
-   <td><span class="badge ${event.domain}">${event.domain}</span></td>
-   <td>${event.eventId||'-'}</td>
-   <td>${event.sourceName||'-'}</td>
-   <td>${event.priority||'-'}</td>
-  `;
-
-  row.onclick=()=>showEvent(event);
-  table.appendChild(row);
- });
+ document.getElementById('explorerCount').textContent = `${rows.length} events shown`;
 }
 
 function showEvent(event){
- document.getElementById('eventDetails').textContent =
- JSON.stringify(event.raw,null,2);
-
+ document.getElementById('eventDetails').textContent = JSON.stringify(event.raw,null,2);
  const kpis=document.getElementById('measurementKPIs');
  kpis.innerHTML='';
-
  const metrics=event.raw?.measurementFields?.measurements;
+ const header = event.raw?.commonEventHeader;
 
+ if(header){
+    const info=document.createElement('div');
+    info.className='kpi';
+    info.innerHTML=`<strong>Event Name</strong>${header.eventName}`;
+    kpis.appendChild(info);
+ }
  if(metrics){
   const wrap=document.createElement('div');
   wrap.className='kpis';
-
   metrics.forEach(m=>{
    const d=document.createElement('div');
    d.className='kpi';
-   d.innerHTML=`<strong>${m.name}</strong><br>${m.value}`;
+   d.innerHTML=`<strong>${m.name}</strong>${m.value}`;
    wrap.appendChild(d);
   });
-
   kpis.appendChild(wrap);
  }
 }
 
+function exportCsv(){
+ const rows = cachedEvents;
+ const header = ['receivedAt','domain','eventId','eventName','sourceName','priority'];
+ const csv = [header.join(',')].concat(
+   rows.map(r=>header.map(h=>`"${(r[h]||'').toString().replace(/"/g,'""')}"`).join(','))
+ ).join('\n');
+ const blob = new Blob([csv], {type:'text/csv'});
+ const url = URL.createObjectURL(blob);
+ const a = document.createElement('a');
+ a.href = url; a.download = `ves-events-${Date.now()}.csv`;
+ a.click();
+ URL.revokeObjectURL(url);
+}
+document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
+
 document.getElementById('searchBox').addEventListener('input',renderEvents);
 document.getElementById('domainFilter').addEventListener('change',renderEvents);
+document.getElementById('deviceFilter').addEventListener('change',renderEvents);
 
+/* ============================================================
+   Devices
+   ============================================================ */
+function timeAgo(iso){
+ if(!iso) return 'never';
+ const diff = (Date.now() - new Date(iso).getTime())/1000;
+ if(diff < 5) return 'just now';
+ if(diff < 60) return `${Math.floor(diff)}s ago`;
+ if(diff < 3600) return `${Math.floor(diff/60)}m ago`;
+ return `${Math.floor(diff/3600)}h ago`;
+}
+
+function liveState(lastSeen){
+ if(!lastSeen) return {cls:'stale', label:'OFFLINE', signal:1};
+ const diff=(Date.now()-new Date(lastSeen).getTime())/1000;
+ if(diff < 30) return {cls:'live', label:'LIVE', signal:4};
+ if(diff < 120) return {cls:'idle', label:'IDLE', signal:2};
+ return {cls:'stale', label:'STALE', signal:1};
+}
+
+async function loadDevices(){
+ try{ cachedDevices = await safeFetch('/api/devices'); } catch(e){ return; }
+ renderDevices();
+ populateAnalyticsDeviceSelect();
+ updateNavBadges();
+}
+
+function deviceCardHtml(d){
+   const state=liveState(d.lastSeen);
+   const metaLine = (d.vendor || d.model) ? `${d.vendor||'Unknown vendor'} &middot; ${d.model||'Unknown model'}` : 'Vendor / model unknown';
+   return `
+    <div class="device-card" data-signal="${state.signal}" data-id="${d.deviceId}">
+      <div class="device-card-head">
+        <span class="status-dot ${state.cls}"></span>
+        <span class="device-id">${d.deviceId}</span>
+        <span class="device-reg ${d.registered ? 'yes':'no'}">${d.registered ? 'registered':'unregistered'}</span>
+      </div>
+      <div class="device-meta">${metaLine}</div>
+      <div class="device-stats">
+        <span><span class="signal-bars"><span></span><span></span><span></span><span></span></span>${state.label}</span>
+        <span>events <b>${d.eventCount}</b></span>
+        <span class="${d.faultCount>0?'flag-crit':''}">faults <b>${d.faultCount}</b></span>
+        <span class="${d.thresholdCount>0?'flag-warn':''}">thr <b>${d.thresholdCount}</b></span>
+      </div>
+      <div class="device-lastseen">last seen ${timeAgo(d.lastSeen)}</div>
+    </div>`;
+}
+
+function attachDeviceClicks(container){
+  container.querySelectorAll('.device-card').forEach(card=>{
+    card.addEventListener('click', ()=>openDeviceModal(card.dataset.id));
+  });
+}
+
+function renderDevices(){
+ // Overview preview (first 4, most recently seen)
+ const sorted=[...cachedDevices].sort((a,b)=> new Date(b.lastSeen||0) - new Date(a.lastSeen||0));
+ const overviewGrid=document.getElementById('overviewDeviceGrid');
+ document.getElementById('overviewDevicePill').textContent = `${cachedDevices.length} connected`;
+ if(sorted.length===0){
+   overviewGrid.innerHTML='<div class="empty-state">No devices have reported yet.</div>';
+ } else {
+   overviewGrid.innerHTML = sorted.slice(0,4).map(deviceCardHtml).join('');
+   attachDeviceClicks(overviewGrid);
+ }
+
+ // Full devices view (with filters)
+ const search=(document.getElementById('deviceSearch').value||'').toLowerCase();
+ const statusFilter=document.getElementById('deviceStatusFilter').value;
+ const regFilter=document.getElementById('deviceRegFilter').value;
+
+ let filtered = sorted.filter(d=>{
+   const text=(d.deviceId+' '+(d.vendor||'')+' '+(d.model||'')).toLowerCase();
+   if(search && !text.includes(search)) return false;
+   if(statusFilter && liveState(d.lastSeen).cls!==statusFilter) return false;
+   if(regFilter==='yes' && !d.registered) return false;
+   if(regFilter==='no' && d.registered) return false;
+   return true;
+ });
+
+ const devicesGrid=document.getElementById('devicesGrid');
+ document.getElementById('devicesCountPill').textContent = `${cachedDevices.length} connected`;
+ if(filtered.length===0){
+   devicesGrid.innerHTML='<div class="empty-state">No devices match the current filters.</div>';
+ } else {
+   devicesGrid.innerHTML = filtered.map(deviceCardHtml).join('');
+   attachDeviceClicks(devicesGrid);
+ }
+}
+
+['deviceSearch','deviceStatusFilter','deviceRegFilter'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderDevices);
+  document.getElementById(id).addEventListener('change', renderDevices);
+});
+
+async function openDeviceModal(deviceId){
+ const backdrop=document.getElementById('deviceModalBackdrop');
+ const body=document.getElementById('modalBody');
+ document.getElementById('modalDeviceId').textContent=deviceId;
+ body.innerHTML='<div class="empty-state">Loading device...</div>';
+ backdrop.classList.add('open');
+
+ let device, events;
+ try{
+   [device, events] = await Promise.all([
+     safeFetch(`/api/device/${encodeURIComponent(deviceId)}`),
+     safeFetch(`/api/device/${encodeURIComponent(deviceId)}/events`)
+   ]);
+ } catch(e){
+   body.innerHTML='<div class="empty-state">Could not load device.</div>';
+   return;
+ }
+
+ const state=liveState(device.lastSeen);
+
+ body.innerHTML=`
+  <div class="modal-grid">
+    <div class="modal-stat"><p>Status</p><h4>${state.label}</h4></div>
+    <div class="modal-stat"><p>Registered</p><h4>${device.registered ? 'Yes':'No'}</h4></div>
+    <div class="modal-stat"><p>Vendor</p><h4>${device.vendor||'&mdash;'}</h4></div>
+    <div class="modal-stat"><p>Model</p><h4>${device.model||'&mdash;'}</h4></div>
+    <div class="modal-stat"><p>Total Events</p><h4>${device.eventCount}</h4></div>
+    <div class="modal-stat"><p>Last Seen</p><h4>${timeAgo(device.lastSeen)}</h4></div>
+    <div class="modal-stat"><p>Faults</p><h4>${(device.faults||[]).length}</h4></div>
+    <div class="modal-stat"><p>Thresholds</p><h4>${(device.thresholds||[]).length}</h4></div>
+  </div>
+  <h5>CPU Usage Trend</h5>
+  <div class="mini-chart-wrap"><canvas id="modalTrendCanvas"></canvas></div>
+  <h5>Recent Events</h5>
+  <div id="modalEvents"></div>
+ `;
+
+ const series = buildMeasurementSeries(device.measurements||[], 'CPU_Usage');
+ if(modalChart) modalChart.destroy();
+ modalChart = new Chart(document.getElementById('modalTrendCanvas'), {
+   type:'line',
+   data:{ labels:series.labels, datasets:[{ label:'CPU_Usage', data:series.data, borderColor:'#22d3c7', backgroundColor:'rgba(34,211,199,0.08)', fill:true, tension:0.3, pointRadius:2 }] },
+   options: baseChartOptions(true)
+ });
+
+ const modalEvents=document.getElementById('modalEvents');
+ const recent=[...events].reverse().slice(0,25);
+ if(recent.length===0){
+   modalEvents.innerHTML='<div class="empty-state">No events recorded for this device.</div>';
+ } else {
+   modalEvents.innerHTML = recent.map(e=>{
+    const header=e.commonEventHeader||{};
+    return `<div class="modal-event-row">
+       <span class="badge ${header.domain}">${header.domain}</span>
+       <span>${header.eventName||'-'}</span>
+       <time>${header.startEpochMicrosec ? new Date(header.startEpochMicrosec/1000).toLocaleTimeString() : ''}</time>
+     </div>`;
+   }).join('');
+ }
+}
+
+document.getElementById('modalClose').addEventListener('click', ()=>{
+ document.getElementById('deviceModalBackdrop').classList.remove('open');
+});
+document.getElementById('deviceModalBackdrop').addEventListener('click', (e)=>{
+ if(e.target.id==='deviceModalBackdrop') e.target.classList.remove('open');
+});
+
+/* ============================================================
+   Analytics
+   ============================================================ */
+function populateAnalyticsDeviceSelect(){
+ const select=document.getElementById('analyticsDeviceSelect');
+ const current = selectedAnalyticsDevice;
+ const ids = cachedDevices.map(d=>d.deviceId).sort();
+ select.innerHTML = ids.map(id=>`<option value="${id}">${id}</option>`).join('');
+ if(ids.length===0) return;
+ selectedAnalyticsDevice = ids.includes(current) ? current : ids[0];
+ select.value = selectedAnalyticsDevice;
+}
+document.getElementById('analyticsDeviceSelect').addEventListener('change', (e)=>{
+ selectedAnalyticsDevice = e.target.value;
+ renderAnalytics();
+});
+
+function buildMetricToggles(){
+ const group=document.getElementById('metricToggleGroup');
+ group.innerHTML = ALL_METRICS.map(m=>
+   `<button class="metric-toggle ${selectedMetrics.has(m)?'active':''}" data-metric="${m}">${m.replace('_',' ')}</button>`
+ ).join('');
+ group.querySelectorAll('.metric-toggle').forEach(btn=>{
+   btn.addEventListener('click', ()=>{
+     const m=btn.dataset.metric;
+     if(selectedMetrics.has(m)) selectedMetrics.delete(m); else selectedMetrics.add(m);
+     buildMetricToggles();
+     renderAnalytics();
+   });
+ });
+}
+buildMetricToggles();
+
+function buildMeasurementSeries(measurementEvents, metricName){
+ const points = measurementEvents.map(e=>{
+   const header = e.commonEventHeader||{};
+   const metrics = e.measurementFields?.measurements||[];
+   const found = metrics.find(m=>m.name===metricName);
+   return { t: header.startEpochMicrosec, v: found ? found.value : null };
+ }).filter(p=>p.t).sort((a,b)=>a.t-b.t);
+
+ return {
+   labels: points.map(p=>new Date(p.t/1000).toLocaleTimeString()),
+   data: points.map(p=>p.v)
+ };
+}
+
+function baseChartOptions(compact){
+ return {
+   responsive:true, maintainAspectRatio:false,
+   interaction:{ mode:'index', intersect:false },
+   plugins:{ legend:{ display: !compact, position:'bottom', labels:{ color:'#8b96a6', font:{ family:'IBM Plex Sans', size:11 }, boxWidth:10 } } },
+   scales:{
+     x:{ ticks:{ color:'#4e5966', font:{ size:10 }, maxTicksLimit:8 }, grid:{ color:'rgba(255,255,255,0.03)' } },
+     y:{ ticks:{ color:'#4e5966', font:{ size:10 } }, grid:{ color:'rgba(255,255,255,0.03)' } }
+   }
+ };
+}
+
+const METRIC_COLORS = {
+ CPU_Usage:'#22d3c7', Memory_Usage:'#9d8cff', Connected_UEs:'#ffd23f', Throughput_Mbps:'#ff9f43'
+};
+
+async function renderAnalytics(){
+ if(!selectedAnalyticsDevice){
+   if(cachedDevices.length>0){ selectedAnalyticsDevice = cachedDevices[0].deviceId; }
+   else return;
+ }
+
+ let device;
+ try{ device = await safeFetch(`/api/device/${encodeURIComponent(selectedAnalyticsDevice)}`); }
+ catch(e){ return; }
+
+ const measurements = device.measurements || [];
+ const datasets = [...selectedMetrics].map(metric=>{
+   const series = buildMeasurementSeries(measurements, metric);
+   return {
+     label: metric.replace('_',' '),
+     data: series.data,
+     _labels: series.labels,
+     borderColor: METRIC_COLORS[metric],
+     backgroundColor: METRIC_COLORS[metric]+'22',
+     tension:0.3, pointRadius:2, fill:false
+   };
+ });
+
+ const labels = datasets.length ? datasets[0]._labels : [];
+
+ if(trendChart) trendChart.destroy();
+ trendChart = new Chart(document.getElementById('trendChart'), {
+   type:'line',
+   data:{ labels, datasets },
+   options: baseChartOptions(false)
+ });
+
+ // latest KPI snapshot
+ const snapshot = document.getElementById('latestKpiSnapshot');
+ const last = measurements[measurements.length-1];
+ const lastMetrics = last?.measurementFields?.measurements || [];
+ if(lastMetrics.length===0){
+   snapshot.innerHTML = '<div class="empty-state">No measurement events yet for this device.</div>';
+ } else {
+   snapshot.innerHTML = lastMetrics.map(m=>`<div class="kpi"><strong>${m.name}</strong>${m.value}</div>`).join('');
+ }
+}
+
+/* ============================================================
+   Alarms (client-side correlation)
+   ============================================================ */
+function severityRank(sev){
+ return { CRITICAL:3, MAJOR:2, WARNING:1, CLEARED:0 }[sev] ?? 0;
+}
+
+function computeAlarmGroups(){
+ const groups = {};
+
+ cachedEvents.forEach(e=>{
+   const raw = e.raw || {};
+   let key=null, severity=null, condition=null, domain=e.domain;
+
+   if(e.domain==='fault'){
+     const ff = raw.faultFields || {};
+     condition = ff.alarmCondition || 'Unknown Condition';
+     severity = (ff.eventSeverity||'WARNING').toUpperCase();
+     key = `${e.sourceName}::fault::${condition}`;
+   } else if(e.domain==='stndDefined' && raw.stndDefinedFields?.measurementName){
+     const sf = raw.stndDefinedFields;
+     condition = sf.measurementName;
+     severity = (sf.eventSeverity||'MAJOR').toUpperCase();
+     if(severity==='NORMAL') severity='CLEARED';
+     key = `${e.sourceName}::stnd::${condition}`;
+   } else if(e.domain==='thresholdCrossingAlert'){
+     const tf = raw.thresholdCrossingAlertFields || {};
+     condition = tf.indicatorName || 'Threshold Breach';
+     severity = 'MAJOR';
+     key = `${e.sourceName}::tca::${condition}`;
+   } else {
+     return;
+   }
+
+   if(!groups[key]){
+     groups[key] = {
+       key, device:e.sourceName, condition, domain,
+       severity, firstSeen:e.receivedAt, lastSeen:e.receivedAt, occurrences:0
+     };
+   }
+   const g = groups[key];
+   g.occurrences += 1;
+   if(e.receivedAt < g.firstSeen) g.firstSeen = e.receivedAt;
+   if(e.receivedAt >= g.lastSeen){ g.lastSeen = e.receivedAt; g.severity = severity; }
+ });
+
+ return Object.values(groups).sort((a,b)=>{
+   if(a.severity==='CLEARED' && b.severity!=='CLEARED') return 1;
+   if(b.severity==='CLEARED' && a.severity!=='CLEARED') return -1;
+   const rd = severityRank(b.severity)-severityRank(a.severity);
+   if(rd!==0) return rd;
+   return new Date(b.lastSeen) - new Date(a.lastSeen);
+ });
+}
+
+function saveAcks(){ localStorage.setItem('vesAckedAlarms', JSON.stringify([...ackedAlarms])); }
+
+function renderAlarmSummary(groups, stripId, pillId){
+ const active = groups.filter(g=>g.severity!=='CLEARED');
+ const counts = { CRITICAL:0, MAJOR:0, WARNING:0 };
+ active.forEach(g=>{ if(counts[g.severity]!==undefined) counts[g.severity]++; });
+
+ if(pillId){
+   document.getElementById(pillId).textContent = `${active.length} open`;
+ }
+
+ document.getElementById(stripId).innerHTML = `
+   <div class="alarm-summary-chip crit"><p>Critical</p><h4>${counts.CRITICAL}</h4></div>
+   <div class="alarm-summary-chip major"><p>Major</p><h4>${counts.MAJOR}</h4></div>
+   <div class="alarm-summary-chip warn"><p>Warning</p><h4>${counts.WARNING}</h4></div>
+   <div class="alarm-summary-chip ok"><p>Cleared</p><h4>${groups.length-active.length}</h4></div>
+ `;
+}
+
+function renderAlarms(){
+ const groups = computeAlarmGroups();
+
+ renderAlarmSummary(groups, 'alarmSummaryStrip', null);
+ renderAlarmSummary(groups, 'overviewAlarmStrip', 'overviewAlarmPill');
+
+ const search=(document.getElementById('alarmSearch').value||'').toLowerCase();
+ const sevFilter=document.getElementById('alarmSeverityFilter').value;
+ const ackFilter=document.getElementById('alarmAckFilter').value;
+
+ let filtered = groups.filter(g=>{
+   const text=(g.device+' '+g.condition).toLowerCase();
+   if(search && !text.includes(search)) return false;
+   if(sevFilter && g.severity!==sevFilter) return false;
+   const acked = ackedAlarms.has(g.key);
+   if(ackFilter==='unacked' && acked) return false;
+   if(ackFilter==='acked' && !acked) return false;
+   return true;
+ });
+
+ const table=document.getElementById('alarmsTable');
+ if(filtered.length===0){
+   table.innerHTML='<tr><td colspan="8" class="empty-state">No alarms match the current filters.</td></tr>';
+ } else {
+   table.innerHTML = filtered.map(g=>{
+     const acked = ackedAlarms.has(g.key);
+     return `
+     <tr class="alarm-row ${g.severity} ${acked?'acked':''}">
+       <td><span class="sev-chip ${g.severity}">${g.severity}</span></td>
+       <td>${g.device}</td>
+       <td>${g.condition}</td>
+       <td><span class="badge ${g.domain}">${g.domain}</span></td>
+       <td>${g.firstSeen}</td>
+       <td>${g.lastSeen}</td>
+       <td>${g.occurrences}</td>
+       <td><button class="btn small ${acked?'':'primary'}" data-key="${g.key}">${acked?'Unack':'Ack'}</button></td>
+     </tr>`;
+   }).join('');
+
+   table.querySelectorAll('button[data-key]').forEach(btn=>{
+     btn.addEventListener('click', (ev)=>{
+       ev.stopPropagation();
+       const key=btn.dataset.key;
+       if(ackedAlarms.has(key)) ackedAlarms.delete(key); else ackedAlarms.add(key);
+       saveAcks();
+       renderAlarms();
+     });
+   });
+ }
+
+ updateNavBadges(groups);
+}
+
+document.getElementById('alarmSearch').addEventListener('input', renderAlarms);
+document.getElementById('alarmSeverityFilter').addEventListener('change', renderAlarms);
+document.getElementById('alarmAckFilter').addEventListener('change', renderAlarms);
+document.getElementById('clearAcksBtn').addEventListener('click', ()=>{
+ ackedAlarms.clear();
+ saveAcks();
+ renderAlarms();
+});
+
+function updateNavBadges(groups){
+ const g = groups || computeAlarmGroups();
+ const openCount = g.filter(x=>x.severity!=='CLEARED' && !ackedAlarms.has(x.key)).length;
+ const badge = document.getElementById('navAlarmBadge');
+ badge.textContent = openCount;
+ badge.classList.toggle('alert', openCount>0);
+ document.getElementById('navDeviceBadge').textContent = cachedDevices.length;
+}
+
+/* ============================================================
+   Toasts for new critical faults
+   ============================================================ */
+function checkForCriticalToasts(){
+ const criticals = cachedEvents.filter(e=>{
+   if(e.domain!=='fault') return false;
+   const sev=(e.raw?.faultFields?.eventSeverity||'').toUpperCase();
+   return sev==='CRITICAL';
+ });
+
+ if(firstLoad){
+   criticals.forEach(e=>toastedEventIds.add(e.collectorId));
+   firstLoad = false;
+   return;
+ }
+
+ criticals.forEach(e=>{
+   if(toastedEventIds.has(e.collectorId)) return;
+   toastedEventIds.add(e.collectorId);
+   showToast(e);
+ });
+}
+
+function showToast(event){
+ const stack=document.getElementById('toastStack');
+ const el=document.createElement('div');
+ el.className='toast';
+ el.innerHTML=`<strong>Critical Fault</strong>${event.sourceName}: ${event.raw?.faultFields?.alarmCondition||event.eventName}`;
+ el.addEventListener('click', ()=>{ switchView('alarms'); });
+ stack.appendChild(el);
+ setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(12px)'; setTimeout(()=>el.remove(),250); }, 6000);
+}
+
+/* ============================================================
+   System health
+   ============================================================ */
+let lastHealthLatency = null;
+
+async function pingHealthcheck(){
+ const start = performance.now();
+ try{
+   const res = await safeFetch('/healthcheck');
+   lastHealthLatency = Math.round(performance.now()-start);
+   return res;
+ } catch(e){
+   lastHealthLatency = null;
+   return null;
+ }
+}
+
+function computeIngestRate(){
+ if(cachedEvents.length<2) return 0;
+ const recent = cachedEvents.slice(-50);
+ const first = new Date(recent[0].receivedAt).getTime();
+ const last = new Date(recent[recent.length-1].receivedAt).getTime();
+ const spanMin = Math.max((last-first)/60000, 1/60);
+ return Math.round((recent.length/spanMin)*10)/10;
+}
+
+async function renderHealthGrid(stats){
+ const health = await pingHealthcheck();
+ const grid = document.getElementById('healthGrid');
+ const rate = computeIngestRate();
+
+ grid.innerHTML = `
+   <div class="health-card ${health ? 'good':'bad'}">
+     <p>Collector Status</p>
+     <h4>${health ? 'UP' : 'UNREACHABLE'}</h4>
+     <div class="sub">/healthcheck</div>
+   </div>
+   <div class="health-card ${lastHealthLatency!==null && lastHealthLatency<200 ? 'good' : 'warn'}">
+     <p>API Latency</p>
+     <h4>${lastHealthLatency!==null ? lastHealthLatency+'ms' : '\u2014'}</h4>
+     <div class="sub">round-trip, this browser</div>
+   </div>
+   <div class="health-card good">
+     <p>Ingest Rate</p>
+     <h4>${rate}/min</h4>
+     <div class="sub">based on last ${Math.min(cachedEvents.length,50)} events</div>
+   </div>
+   <div class="health-card">
+     <p>Events in Buffer</p>
+     <h4>${stats.totalEvents||0}</h4>
+     <div class="sub">in-memory, single instance</div>
+   </div>
+ `;
+}
+
+/* ============================================================
+   Master refresh loop
+   ============================================================ */
 async function refresh(){
  await loadStats();
  await loadEvents();
+ await loadDevices();
+ renderAlarms();
+ if(currentView==='analytics') renderAnalytics();
 }
 
 refresh();
-setInterval(refresh,3000);
+setInterval(refresh, 3000);
 </script>
 
 </body>

@@ -15,6 +15,7 @@ COMMON_HEADER_SCHEMA = {
     "additionalProperties": True
 }
 
+
 HEARTBEAT_SCHEMA = {
     "type": "object",
     "required": [
@@ -26,6 +27,7 @@ HEARTBEAT_SCHEMA = {
         }
     }
 }
+
 
 FAULT_SCHEMA = {
     "type": "object",
@@ -61,6 +63,7 @@ FAULT_SCHEMA = {
     "additionalProperties": True
 }
 
+
 MEASUREMENT_SCHEMA = {
     "type": "object",
     "required": [
@@ -91,6 +94,7 @@ MEASUREMENT_SCHEMA = {
     }
 }
 
+
 NOTIFICATION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -100,6 +104,7 @@ NOTIFICATION_SCHEMA = {
     },
     "additionalProperties": True
 }
+
 
 STATE_CHANGE_SCHEMA = {
     "type": "object",
@@ -111,6 +116,7 @@ STATE_CHANGE_SCHEMA = {
     "additionalProperties": True
 }
 
+
 THRESHOLD_CROSSING_ALERT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -120,6 +126,39 @@ THRESHOLD_CROSSING_ALERT_SCHEMA = {
     },
     "additionalProperties": True
 }
+
+
+# ------------------------------------------------------------------
+# NEW SCHEMA : PNF REGISTRATION
+# ------------------------------------------------------------------
+
+PNF_REGISTRATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "pnfRegistrationFieldsVersion": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": True
+}
+
+
+# ------------------------------------------------------------------
+# NEW SCHEMA : STND DEFINED
+# This is intentionally generic because different STND events
+# have different payloads.
+# ------------------------------------------------------------------
+
+STND_DEFINED_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "stndDefinedFieldsVersion": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": True
+}
+
 
 VES_SCHEMA = {
     "type": "object",
