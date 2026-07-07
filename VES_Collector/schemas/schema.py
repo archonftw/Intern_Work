@@ -173,3 +173,76 @@ VES_SCHEMA = {
     },
     "additionalProperties": False
 }
+
+PNF_REGISTRATION_SCHEMA = {
+    "type": "object",
+    "required": [
+        "pnfRegistrationFieldsVersion",
+        "lastServiceDate",
+        "macAddress",
+        "manufactureDate",
+        "modelNumber",
+        "oamV4IpAddress",
+        "serialNumber",
+        "softwareVersion",
+        "unitFamily",
+        "unitType"
+    ],
+    "properties": {
+        "pnfRegistrationFieldsVersion": {
+            "type": "string"
+        },
+        "lastServiceDate": {
+            "type": "string"
+        },
+        "macAddress": {
+            "type": "string"
+        },
+        "manufactureDate": {
+            "type": "string"
+        },
+        "modelNumber": {
+            "type": "string"
+        },
+        "oamV4IpAddress": {
+            "type": "string"
+        },
+        "oamV6IpAddress": {
+            "type": "string"
+        },
+        "serialNumber": {
+            "type": "string"
+        },
+        "softwareVersion": {
+            "type": "string"
+        },
+        "unitFamily": {
+            "type": "string"
+        },
+        "unitType": {
+            "type": "string"
+        },
+        "additionalFields": {
+            "type": "object",
+            "properties": {
+                "protocol": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "keyId": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": True
+        }
+    },
+    "additionalProperties": True
+}

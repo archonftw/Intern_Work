@@ -2,7 +2,7 @@ import requests
 import random
 import uuid
 import time
-from datetime import datetime
+from datetime import datetime,timedelta
 
 VES_URL = "http://localhost:8080/eventListener/v7"
 
@@ -26,12 +26,13 @@ NETWORK_FUNCTIONS = []
 for name in ["gNB-01", "gNB-02", "DU-01", "DU-02", "CU-CP-01", "CU-UP-01", "AMF-01", "SMF-01"]:
     vendor, model = random.choice(VENDOR_MODELS)
     NETWORK_FUNCTIONS.append({
-        "name": name,
-        "vendor": vendor,
-        "model": model,
-        "serialNumber": uuid.uuid4().hex[:8].upper(),
-        "softwareVersion": f"{random.randint(20, 24)}.{random.randint(0, 9)}.{random.randint(0, 9)}",
-    })
+    "name": name,
+    "vendor": vendor,
+    "model": model,
+    "serialNumber": uuid.uuid4().hex[:8].upper(),
+    "softwareVersion": f"{random.randint(20,24)}.{random.randint(0,9)}.{random.randint(0,9)}",
+    "ip": f"192.168.1.{random.randint(2,254)}"
+})
 
 
 def get_device(name=None):
@@ -167,6 +168,65 @@ def notification_event(device=None):
         }
     }
 
+def pnf_registration_event(device=None):
+    device = device or get_device()
+
+    manufacture_date = (
+        datetime.now() - timedelta(days=random.randint(500, 3000))
+    ).strftime("%Y-%m-%d")
+
+    last_service_date = (
+        datetime.now() - timedelta(days=random.randint(1, 365))
+    ).strftime("%Y-%m-%d")
+
+    return {
+        "event": {
+            "commonEventHeader": common_header(
+                "pnfRegistration",
+                "PNF Registration",
+                device["name"]
+            ),
+            "pnfRegistrationFields": {
+                "pnfRegistrationFieldsVersion": "4.0",
+                "lastServiceDate": last_service_date,
+                "macAddress": ":".join(
+                    f"{random.randint(0,255):02X}" for _ in range(6)
+                ),
+                "manufactureDate": manufacture_date,
+                "modelNumber": device["model"],
+                "oamV4IpAddress": device["ip"],
+                "serialNumber": device["serialNumber"],
+                "softwareVersion": device["softwareVersion"],
+                "unitFamily": random.choice([
+                    "5G-RAN",
+                    "vDU",
+                    "vCU",
+                    "RU"
+                ]),
+                "unitType": random.choice([
+                    "gNB",
+                    "DU",
+                    "CU",
+                    "RU"
+                ]),
+                "additionalFields": {
+                    "protocol": random.choice([
+                        "SSH",
+                        "HTTPS",
+                        "NETCONF"
+                    ]),
+                    "username": "root",
+                    "password": "root",
+                    "port": random.choice([
+                        22,
+                        443,
+                        830
+                    ]),
+                    "keyId": f"KEY-{uuid.uuid4().hex[:8].upper()}"
+                }
+            }
+        }
+    }
 
 def state_change_event(device=None):
     device = device or get_device()
@@ -213,24 +273,6 @@ def threshold_event(device=None):
         }
     }
 
-
-def pnf_registration_event(device=None):
-    device = device or get_device()
-
-    return {
-        "event": {
-            "commonEventHeader": common_header(
-                "pnfRegistration", "Registration", device["name"], "10SF-pnfRegistration"
-            ),
-            "pnfRegistrationFields": {
-                "pnfRegistrationFieldsVersion": "1.0",
-                "serialNumber": device["serialNumber"],
-                "vendorName": device["vendor"],
-                "modelNumber": device["model"],
-                "softwareVersion": device["softwareVersion"]
-            }
-        }
-    }
 
 
 def stnd_file_ready_event(device=None):
