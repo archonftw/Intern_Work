@@ -35,7 +35,16 @@ EVENT_STORE: List[Dict[str, Any]] = []
 # Current state of every discovered network device
 DEVICE_STORE: Dict[str, Dict[str, Any]] = {}
 
-#Schemas to validate
+# Per-list caps to keep memory bounded on a long-running collector
+MAX_EVENTS_PER_DEVICE = 100
+MAX_MEASUREMENTS_PER_DEVICE = 20
+MAX_FAULTS_PER_DEVICE = 50
+MAX_NOTIFICATIONS_PER_DEVICE = 50
+MAX_STATE_CHANGES_PER_DEVICE = 50
+MAX_THRESHOLDS_PER_DEVICE = 50
+MAX_GLOBAL_EVENT_STORE = 5000
+
+# Schemas to validate per VES domain
 DOMAIN_SCHEMAS = {
     "fault": (
         "faultFields",
@@ -67,24 +76,31 @@ DOMAIN_SCHEMAS = {
         THRESHOLD_CROSSING_ALERT_SCHEMA
     ),
 
-    # NEW
     "pnfRegistration": (
         "pnfRegistrationFields",
         PNF_REGISTRATION_SCHEMA
     ),
 
-    # NEW
     "stndDefined": (
         "stndDefinedFields",
         STND_DEFINED_SCHEMA
     )
 }
 
+# Domains that are legal per the VES 7.x spec but don't have a
+# dedicated schema/handler here yet. These are allowed through
+# without field-level validation rather than hard-rejected.
+KNOWN_UNVALIDATED_DOMAINS = {"syslog", "voiceQuality", "other"}
+
+
 def validate_domain(event):
 
     header = event["commonEventHeader"]
-
     domain = header["domain"]
+
+    if domain in KNOWN_UNVALIDATED_DOMAINS:
+        logger.info("Domain '%s' has no field schema - skipping field validation", domain)
+        return
 
     if domain not in DOMAIN_SCHEMAS:
         raise ValidationError(
@@ -157,7 +173,13 @@ def process_stnd(event):
         .lower()
     )
 
-    if "file-ready" in event_name:
+    # NOTE: "cleared" is checked before the generic thresholdcrossingalert
+    # check, since a real event name like "ThresholdCrossingAlert_Cleared"
+    # contains both substrings and should route to the "cleared" handler.
+    if "cleared" in event_name:
+        handle_threshold_clear(event)
+
+    elif "file-ready" in event_name:
         handle_file_ready(event)
 
     elif "notifypnfregistration" in event_name:
@@ -165,9 +187,6 @@ def process_stnd(event):
 
     elif "thresholdcrossingalert" in event_name:
         handle_threshold(event)
-
-    elif "cleared" in event_name:
-        handle_threshold_clear(event)
 
     else:
         logger.info(
@@ -199,6 +218,8 @@ def get_device_id(event: Dict[str, Any]) -> str:
         or header.get("sourceName")
         or "UNKNOWN_DEVICE"
     )
+
+
 def get_or_create_device(device_id: str):
 
     if device_id not in DEVICE_STORE:
@@ -221,6 +242,8 @@ def get_or_create_device(device_id: str):
 
             "heartbeat": None,
 
+            "heartbeatIntervalSec": None,
+
             "faults": [],
 
             "measurements": [],
@@ -237,6 +260,8 @@ def get_or_create_device(device_id: str):
         }
 
     return DEVICE_STORE[device_id]
+
+
 def update_device(event: Dict[str, Any]):
 
     device_id = get_device_id(event)
@@ -246,40 +271,57 @@ def update_device(event: Dict[str, Any]):
     domain = event["commonEventHeader"]["domain"]
 
     device["lastSeen"] = datetime.now(timezone.utc).isoformat()
+    device["status"] = "ONLINE"
 
     device["eventCount"] += 1
 
     device["events"].append(event)
 
-    if len(device["events"]) > 100:
-        device["events"] = device["events"][-100:]
+    if len(device["events"]) > MAX_EVENTS_PER_DEVICE:
+        device["events"] = device["events"][-MAX_EVENTS_PER_DEVICE:]
 
     if domain == "heartbeat":
 
         device["heartbeat"] = event
 
+        interval = event.get("heartbeatFields", {}).get("heartbeatInterval")
+        if interval is not None:
+            device["heartbeatIntervalSec"] = interval
+
     elif domain == "measurement":
 
         device["measurements"].append(event)
 
-        if len(device["measurements"]) > 20:
-            device["measurements"] = device["measurements"][-20:]
+        if len(device["measurements"]) > MAX_MEASUREMENTS_PER_DEVICE:
+            device["measurements"] = device["measurements"][-MAX_MEASUREMENTS_PER_DEVICE:]
 
     elif domain == "fault":
 
         device["faults"].append(event)
 
+        if len(device["faults"]) > MAX_FAULTS_PER_DEVICE:
+            device["faults"] = device["faults"][-MAX_FAULTS_PER_DEVICE:]
+
     elif domain == "notification":
 
         device["notifications"].append(event)
+
+        if len(device["notifications"]) > MAX_NOTIFICATIONS_PER_DEVICE:
+            device["notifications"] = device["notifications"][-MAX_NOTIFICATIONS_PER_DEVICE:]
 
     elif domain == "stateChange":
 
         device["stateChanges"].append(event)
 
+        if len(device["stateChanges"]) > MAX_STATE_CHANGES_PER_DEVICE:
+            device["stateChanges"] = device["stateChanges"][-MAX_STATE_CHANGES_PER_DEVICE:]
+
     elif domain == "thresholdCrossingAlert":
 
         device["thresholds"].append(event)
+
+        if len(device["thresholds"]) > MAX_THRESHOLDS_PER_DEVICE:
+            device["thresholds"] = device["thresholds"][-MAX_THRESHOLDS_PER_DEVICE:]
 
     elif domain == "pnfRegistration":
 
@@ -290,6 +332,7 @@ def update_device(event: Dict[str, Any]):
         device["vendor"] = fields.get("vendorName")
 
         device["model"] = fields.get("modelNumber")
+
 
 def store_event(event: Dict[str, Any]) -> Dict[str, Any]:
     header = event.get("commonEventHeader", {})
@@ -307,6 +350,9 @@ def store_event(event: Dict[str, Any]) -> Dict[str, Any]:
 
     EVENT_STORE.append(enriched)
 
+    if len(EVENT_STORE) > MAX_GLOBAL_EVENT_STORE:
+        del EVENT_STORE[: len(EVENT_STORE) - MAX_GLOBAL_EVENT_STORE]
+
     logger.info(
         "EVENT | domain=%s | id=%s | source=%s",
         enriched["domain"], enriched["eventId"], enriched["sourceName"]
@@ -317,6 +363,20 @@ def store_event(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def error(code: int, msg: str):
     return jsonify({"error": msg}), code
+
+
+def process_single_event(body: Dict[str, Any]):
+    """
+    Validate, dispatch, and store a single VES event envelope.
+    Raises ValidationError on schema/domain problems.
+    Returns the enriched stored record.
+    """
+    validate(body, VES_SCHEMA)
+    event = body["event"]
+    validate_domain(event)
+    process_event(event)
+    update_device(event)
+    return store_event(event)
 
 
 # ────────────────────────────────────────────────
@@ -333,21 +393,62 @@ def ingest_event():
     except Exception:
         return error(400, "Invalid JSON")
 
+    if not isinstance(body, dict):
+        return error(400, "Expected a JSON object")
+
     try:
-        validate(body, VES_SCHEMA)
-        event = body["event"]
-        validate_domain(event)
-        # Process event before storing
-        process_event(event)
+        process_single_event(body)
     except ValidationError as e:
         return error(400, f"Schema error: {e.message}")
-
-    event = body["event"]
-    update_device(event)
-    store_event(event)
+    except Exception:
+        logger.exception("Unexpected error processing event")
+        return error(500, "Internal processing error")
 
     return "", 202
 
+
+@app.route("/eventListener/v7/eventBatch", methods=["POST"])
+def ingest_batch():
+    if not request.is_json:
+        return error(415, "Expected JSON")
+
+    try:
+        body = request.get_json()
+    except Exception:
+        return error(400, "Invalid JSON")
+
+    if not isinstance(body, dict) or "eventList" not in body:
+        return error(400, "Expected a JSON object with an 'eventList' array")
+
+    event_list = body["eventList"]
+
+    if not isinstance(event_list, list) or len(event_list) == 0:
+        return error(400, "'eventList' must be a non-empty array")
+
+    errors = []
+
+    for idx, single_event_body in enumerate(event_list):
+        try:
+            if not isinstance(single_event_body, dict):
+                raise ValidationError("Batch item must be a JSON object")
+            process_single_event(single_event_body)
+        except ValidationError as e:
+            errors.append({"index": idx, "error": e.message})
+        except Exception:
+            logger.exception("Unexpected error processing batch item %d", idx)
+            errors.append({"index": idx, "error": "Internal processing error"})
+
+    if errors:
+        # Partial or total failure: still 202 if some events succeeded,
+        # but surface which items failed so the sender can retry just those.
+        accepted = len(event_list) - len(errors)
+        return jsonify({
+            "accepted": accepted,
+            "rejected": len(errors),
+            "errors": errors
+        }), 202 if accepted > 0 else 400
+
+    return "", 202
 
 
 # ────────────────────────────────────────────────
@@ -365,8 +466,15 @@ def dashboard():
 
 @app.route("/api/events")
 def api_events():
-    limit = int(request.args.get("limit", 100))
+    try:
+        limit = int(request.args.get("limit", 100))
+    except (TypeError, ValueError):
+        limit = 100
+
+    limit = max(1, min(limit, MAX_GLOBAL_EVENT_STORE))
+
     return jsonify(EVENT_STORE[-limit:])
+
 
 @app.route("/api/devices")
 def api_devices():
@@ -398,6 +506,7 @@ def api_devices():
 
     return jsonify(devices)
 
+
 @app.route("/api/device/<device_id>")
 def api_device(device_id):
 
@@ -408,6 +517,7 @@ def api_device(device_id):
 
     return jsonify(device)
 
+
 @app.route("/api/device/<device_id>/events")
 def api_device_events(device_id):
 
@@ -417,6 +527,7 @@ def api_device_events(device_id):
         return error(404, "Device not found")
 
     return jsonify(device["events"])
+
 
 @app.route("/api/stats")
 def stats():
@@ -493,7 +604,7 @@ def stats():
                 e for e in EVENT_STORE
                 if e["domain"] == "pnfRegistration"
             ]),
-        
+
         "stndDefinedEvents":
             len([
                 e for e in EVENT_STORE
@@ -525,6 +636,7 @@ def domains():
         )
 
     return jsonify(counts)
+
 # ────────────────────────────────────────────────
 # Healthcheck
 # ────────────────────────────────────────────────
@@ -533,7 +645,8 @@ def domains():
 def health():
     return jsonify({
         "status": "UP",
-        "events": len(EVENT_STORE)
+        "events": len(EVENT_STORE),
+        "devices": len(DEVICE_STORE)
     })
 
 

@@ -145,8 +145,6 @@ PNF_REGISTRATION_SCHEMA = {
 
 # ------------------------------------------------------------------
 # NEW SCHEMA : STND DEFINED
-# This is intentionally generic because different STND events
-# have different payloads.
 # ------------------------------------------------------------------
 
 STND_DEFINED_SCHEMA = {
