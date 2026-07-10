@@ -21,6 +21,7 @@
       <li><button class="nav-item active" data-view="overview"><span class="nav-icon">&#9635;</span><span class="nav-label">Overview</span></button></li>
       <li><button class="nav-item" data-view="alarms"><span class="nav-icon">&#9650;</span><span class="nav-label">Alarms</span><span class="nav-badge alert" id="navAlarmBadge">0</span></button></li>
       <li><button class="nav-item" data-view="devices"><span class="nav-icon">&#9637;</span><span class="nav-label">Devices</span><span class="nav-badge" id="navDeviceBadge">0</span></button></li>
+      <li><button class="nav-item" data-view="files"><span class="nav-icon">&#8862;</span><span class="nav-label">Files</span><span class="nav-badge" id="navFilesBadge">0</span></button></li>
       <li><button class="nav-item" data-view="analytics"><span class="nav-icon">&#8767;</span><span class="nav-label">Analytics</span></button></li>
       <li><button class="nav-item" data-view="explorer"><span class="nav-icon">&#9638;</span><span class="nav-label">Event Explorer</span></button></li>
       <li><button class="nav-item" data-view="system"><span class="nav-icon">&#9678;</span><span class="nav-label">System Health</span></button></li>
@@ -146,6 +147,39 @@
 
       </section>
 
+      <!-- ============================== FILES =============================== -->
+      <section class="view-panel" id="view-files">
+
+        <div class="panel">
+          <h3>File References <span class="count-pill" id="filesCountPill">0 files</span></h3>
+          <p class="panel-note">Files announced via fileReady (stndDefined) events. fileLocation points to the network function's file server &mdash; content is fetched on demand when you click Preview, not stored here.</p>
+
+          <div class="controls">
+            <input id="fileSearch" placeholder="Search source, location, or format">
+            <select id="fileFormatFilter">
+              <option value="">All Formats</option>
+            </select>
+          </div>
+
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Received</th><th>Source</th><th>Format</th><th>Type</th>
+                  <th>Size</th><th>Ready Time</th><th>Expires</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="filesTable"></tbody>
+            </table>
+          </div>
+          <div class="table-foot">
+            <span id="filesCount">0 files shown</span>
+            <span>Buffer holds last 200 file references</span>
+          </div>
+        </div>
+
+      </section>
+
       <!-- ============================== ANALYTICS =============================== -->
       <section class="view-panel" id="view-analytics">
 
@@ -256,12 +290,24 @@
   </div>
 </div>
 
+<!-- File preview modal -->
+<div class="modal-backdrop" id="fileModalBackdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="fileModalName">FILE</h3>
+      <button class="modal-close" id="fileModalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="fileModalBody"></div>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    State
    ============================================================ */
 let cachedEvents = [];
 let cachedDevices = [];
+let cachedFiles = [];
 let domainChart = null, trendChart = null, modalChart = null;
 let chartInitialized = false;
 let currentView = 'overview';
@@ -277,6 +323,7 @@ const VIEW_META = {
   overview:  { title:'Overview',        subtitle:'Live network event summary' },
   alarms:    { title:'Alarms',          subtitle:'Correlated fault & threshold conditions' },
   devices:   { title:'Devices',         subtitle:'All reporting network functions' },
+  files:     { title:'Files',           subtitle:'fileReady references from stndDefined events' },
   analytics: { title:'Analytics',       subtitle:'Per-device KPI trends over time' },
   explorer:  { title:'Event Explorer',  subtitle:'Raw event stream, searchable & sortable' },
   system:    { title:'System Health',   subtitle:'Collector pipeline diagnostics' },
@@ -334,31 +381,6 @@ function tickClock(){
 setInterval(tickClock, 1000);
 tickClock();
 
-/* ============================================================
-   Fetch helper (tracks connection status)
-   ============================================================ */
-async function safeFetch(url){
-  try{
-    const res = await fetch(url);
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    setConnStatus(true);
-    return await res.json();
-  }catch(err){
-    setConnStatus(false);
-    throw err;
-  }
-}
-
-function setConnStatus(up){
-  const el = document.getElementById('connStatus');
-  if(up){
-    el.textContent = 'CONNECTED';
-    el.classList.remove('down');
-  } else {
-    el.textContent = 'DISCONNECTED';
-    el.classList.add('down');
-  }
-}
 
 /* ============================================================
    Stats + domain chart
@@ -566,25 +588,7 @@ document.getElementById('searchBox').addEventListener('input',renderEvents);
 document.getElementById('domainFilter').addEventListener('change',renderEvents);
 document.getElementById('deviceFilter').addEventListener('change',renderEvents);
 
-/* ============================================================
-   Devices
-   ============================================================ */
-function timeAgo(iso){
- if(!iso) return 'never';
- const diff = (Date.now() - new Date(iso).getTime())/1000;
- if(diff < 5) return 'just now';
- if(diff < 60) return `${Math.floor(diff)}s ago`;
- if(diff < 3600) return `${Math.floor(diff/60)}m ago`;
- return `${Math.floor(diff/3600)}h ago`;
-}
 
-function liveState(lastSeen){
- if(!lastSeen) return {cls:'stale', label:'OFFLINE', signal:1};
- const diff=(Date.now()-new Date(lastSeen).getTime())/1000;
- if(diff < 30) return {cls:'live', label:'LIVE', signal:4};
- if(diff < 120) return {cls:'idle', label:'IDLE', signal:2};
- return {cls:'stale', label:'STALE', signal:1};
-}
 
 async function loadDevices(){
  try{ cachedDevices = await safeFetch('/api/devices'); } catch(e){ return; }
@@ -730,6 +734,160 @@ document.getElementById('deviceModalBackdrop').addEventListener('click', (e)=>{
 });
 
 /* ============================================================
+   Files
+   ============================================================ */
+async function loadFiles(){
+ let res;
+ try{ res = await safeFetch('/eventListener/v7?limit=200'); } catch(e){ return; }
+ cachedFiles = res.entries || res || [];
+ populateFileFormatFilter();
+ renderFiles();
+ updateNavBadges();
+}
+
+function populateFileFormatFilter(){
+ const select=document.getElementById('fileFormatFilter');
+ const current=select.value;
+ const formats=[...new Set(cachedFiles.map(f=>f.fileFormat).filter(Boolean))].sort();
+ select.innerHTML='<option value="">All Formats</option>' + formats.map(f=>`<option value="${f}">${f}</option>`).join('');
+ select.value = formats.includes(current) ? current : '';
+}
+
+function formatBytes(bytes){
+ if(bytes===undefined || bytes===null) return '-';
+ if(bytes < 1024) return bytes + ' B';
+ if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+ return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function renderFiles(){
+ const search=(document.getElementById('fileSearch').value||'').toLowerCase();
+ const formatFilter=document.getElementById('fileFormatFilter').value;
+
+ document.getElementById('filesCountPill').textContent = `${cachedFiles.length} files`;
+
+ let rows = cachedFiles.filter(f=>{
+   if(formatFilter && f.fileFormat!==formatFilter) return false;
+   const text=((f.sourceName||'')+' '+(f.fileLocation||'')+' '+(f.fileFormat||'')).toLowerCase();
+   if(search && !text.includes(search)) return false;
+   return true;
+ });
+
+ rows.sort((a,b)=> new Date(b.receivedAt||0) - new Date(a.receivedAt||0));
+
+ const table=document.getElementById('filesTable');
+ if(rows.length===0){
+   table.innerHTML='<tr><td colspan="8" class="empty-state">No file references yet. Waiting for fileReady events...</td></tr>';
+ } else {
+   table.innerHTML = rows.map(f=>`
+     <tr>
+       <td>${f.receivedAt ? new Date(f.receivedAt).toLocaleTimeString() : '-'}</td>
+       <td>${f.sourceName||'-'}</td>
+       <td><span class="badge stndDefined">${f.fileFormat||'-'}</span></td>
+       <td>${f.fileDataType||'-'}</td>
+       <td>${formatBytes(f.fileSize)}</td>
+       <td>${f.fileReadyTime||'-'}</td>
+       <td>${f.fileExpirationTime||'-'}</td>
+       <td><button class="btn small primary" data-file-id="${f.fileId}">Preview</button></td>
+     </tr>`).join('');
+
+   table.querySelectorAll('button[data-file-id]').forEach(btn=>{
+     btn.addEventListener('click', ()=>openFilePreview(btn.dataset.fileId));
+   });
+ }
+
+ document.getElementById('filesCount').textContent = `${rows.length} files shown`;
+}
+
+document.getElementById('fileSearch').addEventListener('input', renderFiles);
+document.getElementById('fileFormatFilter').addEventListener('change', renderFiles);
+
+async function openFilePreview(fileId){
+  console.log("Preview clicked:", fileId);
+
+  const backdrop = document.getElementById('fileModalBackdrop');
+  const body = document.getElementById('fileModalBody');
+  document.getElementById('fileModalName').textContent = 'Loading...';
+  body.innerHTML = '<div class="empty-state">Fetching file...</div>';
+  backdrop.classList.add('open');
+
+  let result;
+  try {
+    result = await safeFetch(`/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=preview`);
+  } catch(e) {
+    body.innerHTML = '<div class="empty-state">Could not reach the collector.</div>';
+    return;
+  }
+
+  const meta = result.metadata || {};
+  document.getElementById('fileModalName').textContent = result.filename || meta.sourceName || 'File Document';
+
+  // Crisp, clean summary header metrics block (Darker control area)
+  const metaHeader = `
+    <div class="doc-viewer-meta">
+      <div class="meta-item"><strong>Source:</strong> <span>${meta.sourceName || '—'}</span></div>
+      <div class="meta-item"><strong>Format:</strong> <span class="badge stndDefined">${meta.fileFormat || '—'}</span></div>
+      <div class="meta-item"><strong>Size:</strong> <span>${formatBytes(meta.fileSize)}</span></div>
+      <div class="meta-item"><strong>Expires:</strong> <span>${meta.fileExpirationTime || '—'}</span></div>
+      <div class="meta-actions-right">
+        <a class="btn small primary" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">&#9660; Download Raw File</a>
+      </div>
+    </div>`;
+
+  if(!result.fetched){
+    body.innerHTML = metaHeader + `
+      <div class="document-scroller">
+        <div class="document-canvas error-state">
+          <h5>Document Unavailability Notice</h5>
+          <p>Reason: ${result.reason || 'Unknown internal file system issue'}</p>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // Fallback styling checks for structured content formatting
+  let contentBlock = '';
+  if (result.textContent !== undefined && result.textContent !== null) {
+    // Sanitizing HTML symbols safely
+    const safeText = result.textContent.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    contentBlock = `<pre class="document-text-engine">${safeText}</pre>`;
+  } else {
+    contentBlock = `
+      <div class="binary-placeholder">
+        <p><strong>Binary File Content Stream</strong></p>
+        <p class="panel-note">Content type (${result.contentType || 'unknown'}) cannot be processed safely as text layouts.</p>
+      </div>`;
+  }
+
+  // Assembling the paper sheet interface wrapper
+  body.innerHTML = metaHeader + `
+    <div class="document-scroller">
+      <div class="document-canvas">
+        <div class="document-canvas-header">
+          <div class="doc-title-block">
+            <h4>${result.filename || 'File Data Payload Summary'}</h4>
+            <small>Content-Type: ${result.contentType || 'text/plain'} &middot; Data Type: ${meta.fileDataType || 'Raw Metric Data'}</small>
+          </div>
+          <div class="doc-timestamp-block">
+            <small>Ready: ${meta.fileReadyTime || '—'}</small>
+          </div>
+        </div>
+        <hr class="doc-divider" />
+        <div class="document-content-view">
+          ${contentBlock}
+        </div>
+      </div>
+    </div>`;
+}
+
+document.getElementById('fileModalClose').addEventListener('click', ()=>{
+ document.getElementById('fileModalBackdrop').classList.remove('open');
+});
+document.getElementById('fileModalBackdrop').addEventListener('click', (e)=>{
+ if(e.target.id==='fileModalBackdrop') e.target.classList.remove('open');
+});
+
+/* ============================================================
    Analytics
    ============================================================ */
 function populateAnalyticsDeviceSelect(){
@@ -835,12 +993,6 @@ async function renderAnalytics(){
  }
 }
 
-/* ============================================================
-   Alarms (client-side correlation)
-   ============================================================ */
-function severityRank(sev){
- return { CRITICAL:3, MAJOR:2, WARNING:1, CLEARED:0 }[sev] ?? 0;
-}
 
 function computeAlarmGroups(){
  const groups = {};
@@ -978,6 +1130,7 @@ function updateNavBadges(groups){
  badge.textContent = openCount;
  badge.classList.toggle('alert', openCount>0);
  document.getElementById('navDeviceBadge').textContent = cachedDevices.length;
+ document.getElementById('navFilesBadge').textContent = cachedFiles.length;
 }
 
 /* ============================================================
@@ -1075,13 +1228,16 @@ async function refresh(){
  await loadStats();
  await loadEvents();
  await loadDevices();
+ await loadFiles();
  renderAlarms();
  if(currentView==='analytics') renderAnalytics();
 }
-
+  
 refresh();
 setInterval(refresh, 3000);
 </script>
+<script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="/static/js/ui.js"></script>
 
 </body>
 </html>

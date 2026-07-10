@@ -2,7 +2,9 @@ import requests
 import random
 import uuid
 import time
-from datetime import datetime,timedelta
+import os
+import tempfile
+from datetime import datetime,timedelta,UTC
 
 VES_URL = "http://localhost:8080/eventListener/v7"
 
@@ -33,6 +35,18 @@ for name in ["gNB-01", "gNB-02", "DU-01", "DU-02", "CU-CP-01", "CU-UP-01", "AMF-
     "softwareVersion": f"{random.randint(20,24)}.{random.randint(0,9)}.{random.randint(0,9)}",
     "ip": f"192.168.1.{random.randint(2,254)}"
 })
+
+# ────────────────────────────────────────────────
+# Local file storage for simulated fileReady payloads.
+# Real NFs would put these on an SFTP/S3 endpoint; for local testing
+# against the collector's file_ready_service, we write real files to
+# disk and point fileLocation at them via file:// so the dashboard's
+# Preview button can actually fetch and display content, not just
+# metadata.
+# ────────────────────────────────────────────────
+
+PM_FILE_DIR = os.path.join(tempfile.gettempdir(), "ves_pm_files")
+os.makedirs(PM_FILE_DIR, exist_ok=True)
 
 
 def get_device(name=None):
@@ -274,25 +288,93 @@ def threshold_event(device=None):
     }
 
 
+def _write_pm_file(device):
+    """
+    Write a small pseudo-3GPP PM measurement XML file to disk and return
+    (file_path, file_size_bytes). This stands in for what a real NF would
+    push to an SFTP/S3 endpoint - here it's a real local file so the
+    collector's fileReady preview can actually fetch and display it.
+    """
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    file_id = uuid.uuid4().hex
+
+    content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<measCollecFile xmlns="http://www.3gpp.org/ftp/specs/archive/32_series/32.435#measCollec">
+  <fileHeader fileFormatVersion="32.435 V10.0" vendorName="{device['vendor']}" dnPrefix="{device['name']}">
+    <fileSender localDn="{device['name']}"/>
+    <measCollec beginTime="{now}"/>
+  </fileHeader>
+  <measData>
+    <managedElement localDn="ManagedElement=1,GNBDUFunction=1" swVersion="{device['softwareVersion']}"/>
+    <measInfo measInfoId="PM_{file_id}">
+      <granPeriod duration="PT15M" endTime="{now}"/>
+      <repPeriod duration="PT15M"/>
+      <measTypes>CPU_Usage Memory_Usage Connected_UEs Throughput_Mbps</measTypes>
+      <measValue measObjLdn="{device['name']}">
+        <r p="1">{round(random.uniform(10, 99), 2)}</r>
+        <r p="2">{round(random.uniform(20, 95), 2)}</r>
+        <r p="3">{random.randint(50, 1000)}</r>
+        <r p="4">{round(random.uniform(100, 3000), 2)}</r>
+      </measValue>
+    </measInfo>
+  </measData>
+  <fileFooter>
+    <measCollec endTime="{now}"/>
+  </fileFooter>
+</measCollecFile>
+"""
+
+    filename = f"{file_id}.xml"
+    filepath = os.path.join(PM_FILE_DIR, filename)
+    with open(filepath, "w") as f:
+        f.write(content)
+
+    return filepath, os.path.getsize(filepath)
+
 
 def stnd_file_ready_event(device=None):
     device = device or get_device()
 
+    now = datetime.now(UTC)
+    filepath, file_size = _write_pm_file(device)
+
     return {
         "event": {
-            "commonEventHeader": common_header(
-                "stndDefined", "FileReady", device["name"], "FYNG-stndDefined-3gpp-file-ready"
-            ),
+            "commonEventHeader": {
+                **common_header(
+                    "stndDefined",
+                    "FileReady",
+                    device["name"],
+                    "stndDefined_FileReady"
+                ),
+                "eventType": "fileReady",
+                "version": "4.0",
+                "sequence": random.randint(1, 100000),
+                "vesEventListenerVersion": "7.2"
+            },
             "stndDefinedFields": {
                 "stndDefinedFieldsVersion": "1.0",
-                "fileName": f"PM_{uuid.uuid4().hex[:6]}.xml.gz",
-                "location": "/pm/files/",
-                "compression": "gzip",
-                "fileSize": random.randint(1000, 5000)
+                "data": {
+                    "systemDN": "ManagedElement=1,GNBDUFunction=1",
+                    "additionalText": "Bulk data file transfer readiness notification.",
+                    "eventTime": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                    "fileInfoList": [
+                        {
+                            "fileSize": file_size,
+                            "fileLocation": f"file://{filepath}",
+                            "fileFormat": "XML",
+                            "fileDataType": "PM",
+                            "fileReadyTime": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                            "fileExpirationTime": (
+                                now + timedelta(days=7)
+                            ).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                            "fileCompression": "none"
+                        }
+                    ]
+                }
             }
         }
     }
-
 
 def stnd_o1_registration_event(device=None):
     device = device or get_device()
@@ -404,12 +486,14 @@ def register_all_devices():
 def send_event():
     device = get_device()
     generator = random.choice(EVENT_GENERATORS)
-    post_event(generator(device))
+    payload = generator(device)
+    post_event(payload)
 
 
 if __name__ == "__main__":
     print("Starting VES Traffic Generator...")
     print(f"Target: {VES_URL}")
+    print(f"Simulated PM files written to: {PM_FILE_DIR}")
 
     register_all_devices()
 

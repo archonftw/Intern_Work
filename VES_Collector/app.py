@@ -4,7 +4,8 @@ from routes.ingestion import ingestion_bp
 from routes.devices import devices_bp
 from routes.stats import stats_bp
 from routes.dashboard import dashboard_bp
-
+from routes.filereferences import filereferences_bp
+from services.file_ready_service import is_file_ready_event, process_file_ready
 
 app = Flask(
     __name__,
@@ -17,7 +18,7 @@ app.register_blueprint(ingestion_bp)
 app.register_blueprint(devices_bp)
 app.register_blueprint(stats_bp)
 app.register_blueprint(dashboard_bp)
-
+app.register_blueprint(filereferences_bp)
 
 
 if __name__ == "__main__":

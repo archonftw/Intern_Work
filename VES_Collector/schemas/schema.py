@@ -63,6 +63,128 @@ FAULT_SCHEMA = {
     "additionalProperties": True
 }
 
+FILE_READY_SCHEMA = {
+    "type": "object",
+    "required": [
+        "eventType",
+        "version",
+        "eventName",
+        "sourceName",
+        "domain",
+        "stndDefinedFields"
+    ],
+    "properties": {
+        "eventType": {
+            "type": "string"
+        },
+        "priority": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string"
+        },
+        "reportingEntityName": {
+            "type": "string"
+        },
+        "sourceName": {
+            "type": "string"
+        },
+        "domain": {
+            "type": "string"
+        },
+        "eventName": {
+            "type": "string"
+        },
+        "sequence": {
+            "type": "number"
+        },
+        "lastEpochMicrosec": {
+            "type": "number"
+        },
+        "vesEventListenerVersion": {
+            "type": "string"
+        },
+        "stndDefinedFields": {
+            "type": "object",
+            "required": [
+                "stndDefinedFieldsVersion",
+                "data"
+            ],
+            "properties": {
+                "stndDefinedFieldsVersion": {
+                    "type": "string"
+                },
+                "data": {
+                    "type": "object",
+                    "required": [
+                        "systemDN",
+                        "eventTime",
+                        "fileInfoList"
+                    ],
+                    "properties": {
+                        "systemDN": {
+                            "type": "string"
+                        },
+                        "additionalText": {
+                            "type": "string"
+                        },
+                        "eventTime": {
+                            "type": "string"
+                        },
+                        "fileInfoList": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "required": [
+                                    "fileSize",
+                                    "fileLocation",
+                                    "fileFormat",
+                                    "fileDataType",
+                                    "fileReadyTime",
+                                    "fileExpirationTime",
+                                    "fileCompression"
+                                ],
+                                "properties": {
+                                    "fileSize": {
+                                        "type": "number"
+                                    },
+                                    "fileLocation": {
+                                        "type": "string"
+                                    },
+                                    "fileFormat": {
+                                        "type": "string"
+                                    },
+                                    "fileDataType": {
+                                        "type": "string"
+                                    },
+                                    "fileReadyTime": {
+                                        "type": "string"
+                                    },
+                                    "fileExpirationTime": {
+                                        "type": "string"
+                                    },
+                                    "fileCompression": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "notificationId": {
+            "type": "number"
+        },
+        "href": {
+            "type": "string"
+        },
+        "notificationType": {
+            "type": "string"
+        }
+    }
+}
 
 MEASUREMENT_SCHEMA = {
     "type": "object",
@@ -128,19 +250,6 @@ THRESHOLD_CROSSING_ALERT_SCHEMA = {
 }
 
 
-# ------------------------------------------------------------------
-# NEW SCHEMA : PNF REGISTRATION
-# ------------------------------------------------------------------
-
-PNF_REGISTRATION_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "pnfRegistrationFieldsVersion": {
-            "type": "string"
-        }
-    },
-    "additionalProperties": True
-}
 
 
 # ------------------------------------------------------------------
@@ -173,6 +282,7 @@ VES_SCHEMA = {
     },
     "additionalProperties": False
 }
+
 
 PNF_REGISTRATION_SCHEMA = {
     "type": "object",

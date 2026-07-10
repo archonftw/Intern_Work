@@ -9,3 +9,8 @@ MAX_GLOBAL_EVENT_STORE = 5000
 
 KNOWN_UNVALIDATED_DOMAINS = {"syslog", "voiceQuality", "other"}
 
+MAX_FILE_STORE = 5000
+ALLOW_REMOTE_FETCH = False   # flip True to actually fetch files, not just show metadata
+ALLOW_PRIVATE_IPS = False    # flip True in dev if fetching from localhost/testing rig
+MAX_FETCH_BYTES = 10 * 1024 * 1024
+FETCH_TIMEOUT_SEC = 15

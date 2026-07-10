@@ -1,13 +1,15 @@
 import logging
 
+from services.file_ready_service import process_file_ready, is_file_ready_event
+
 logger = logging.getLogger("VES-COLLECTOR")
 
 
 def handle_file_ready(event):
-
+    records = process_file_ready(event)
     logger.info(
-        "[FILE READY] %s",
-        event["commonEventHeader"]["eventName"]
+        "[FILE READY] %s | %d file(s) stored",
+        event["commonEventHeader"]["eventName"], len(records)
     )
 
 
@@ -43,13 +45,10 @@ def process_stnd(event):
         .lower()
     )
 
-    # NOTE: "cleared" is checked before the generic thresholdcrossingalert
-    # check, since a real event name like "ThresholdCrossingAlert_Cleared"
-    # contains both substrings and should route to the "cleared" handler.
     if "cleared" in event_name:
         handle_threshold_clear(event)
 
-    elif "file-ready" in event_name:
+    elif is_file_ready_event(event) or "file-ready" in event_name or "fileready" in event_name:
         handle_file_ready(event)
 
     elif "notifypnfregistration" in event_name:
