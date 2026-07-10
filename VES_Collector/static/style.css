@@ -723,3 +723,61 @@ tbody td{ padding:9px 10px; font-family:var(--mono); color:var(--text-dim); over
   font-size: 16px;
   margin-bottom: 8px;
 }
+
+/* Document Section Layouts */
+.doc-section-title {
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 12px 0;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 6px;
+}
+
+/* Beautiful Data Table within the PDF Viewport */
+.doc-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+
+.doc-data-table th, 
+.doc-data-table td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.doc-data-table th {
+  background-color: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.doc-data-table td {
+  color: #334155;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.doc-data-table td strong {
+  color: #0f172a;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.doc-data-table tr:hover td {
+  background-color: #f8fafc;
+}
+
+.doc-metric-value {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  background-color: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #0f172a;
+  font-weight: 600;
+}

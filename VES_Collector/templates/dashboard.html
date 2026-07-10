@@ -844,12 +844,95 @@ async function openFilePreview(fileId){
     return;
   }
 
-  // Fallback styling checks for structured content formatting
+  // Handle file text rendering
   let contentBlock = '';
   if (result.textContent !== undefined && result.textContent !== null) {
-    // Sanitizing HTML symbols safely
-    const safeText = result.textContent.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    contentBlock = `<pre class="document-text-engine">${safeText}</pre>`;
+    const rawText = result.textContent;
+    const format = (meta.fileFormat || '').toLowerCase();
+
+    // Check if the file is explicitly XML or looks like XML
+    if (format.includes('xml') || rawText.trim().startsWith('<')) {
+      try {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(rawText, "application/xml");
+        
+        // Check for parser errors
+        const parserError = xmlDoc.querySelector('parsererror');
+        if (parserError) throw new Error("Invalid XML structural syntax");
+
+        // Extract key structural components dynamically
+        let meaningfulFields = [];
+        let dataPayloads = [];
+
+        // Traverse nodes to pull out meaningful data elements, avoiding empty text nodes
+        function traverseXML(node) {
+          if (node.nodeType === 1) { // Element Node
+            // If it's a leaf node with text content, capture it
+            if (node.childNodes.length === 1 && node.childNodes[0].nodeType === 3) {
+              const val = node.textContent.trim();
+              if (val) {
+                const fieldData = { name: node.nodeName, value: val };
+                // Group configuration/header info vs raw numeric metrics
+                if (node.nodeName.toLowerCase().includes('time') || 
+                    node.nodeName.toLowerCase().includes('id') || 
+                    node.nodeName.toLowerCase().includes('version') || 
+                    node.nodeName.toLowerCase().includes('name')) {
+                  meaningfulFields.push(fieldData);
+                } else {
+                  dataPayloads.push(fieldData);
+                }
+              }
+            }
+            for (let i = 0; i < node.childNodes.length; i++) {
+              traverseXML(node.childNodes[i]);
+            }
+          }
+        }
+        traverseXML(xmlDoc.documentElement);
+
+        // Fallback check if it's an atypical flat file structure
+        if (meaningfulFields.length === 0 && dataPayloads.length === 0) {
+          contentBlock = `<pre class="document-text-engine">${rawText.replace(/</g, '&lt;')}</pre>`;
+        } else {
+          // Build a beautiful structured view
+          let htmlOutput = '';
+          
+          if (meaningfulFields.length > 0) {
+            htmlOutput += `
+              <h5 class="doc-section-title">Identity & Common Elements</h5>
+              <table class="doc-data-table">
+                <thead><tr><th>Field Parameter</th><th>Value</th></tr></thead>
+                <tbody>
+                  ${meaningfulFields.map(f => `<tr><td><strong>${f.name}</strong></td><td>${f.value}</td></tr>`).join('')}
+                </tbody>
+              </table>`;
+          }
+
+          if (dataPayloads.length > 0) {
+            htmlOutput += `
+              <h5 class="doc-section-title" style="margin-top:24px;">Data Metrics & Managed Objects</h5>
+              <table class="doc-data-table">
+                <thead><tr><th>Metric Indicator</th><th>Value / Reading</th></tr></thead>
+                <tbody>
+                  ${dataPayloads.map(f => `<tr><td>${f.name}</td><td><span class="doc-metric-value">${f.value}</span></td></tr>`).join('')}
+                </tbody>
+              </table>`;
+          }
+          
+          contentBlock = htmlOutput;
+        }
+
+      } catch (err) {
+        // Fallback to text dump if parsing crashes
+        console.warn("XML Parsing engine failed, falling back to plaintext:", err);
+        const safeText = rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        contentBlock = `<pre class="document-text-engine">${safeText}</pre>`;
+      }
+    } else {
+      // Handle normal non-XML text files
+      const safeText = rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      contentBlock = `<pre class="document-text-engine">${safeText}</pre>`;
+    }
   } else {
     contentBlock = `
       <div class="binary-placeholder">
