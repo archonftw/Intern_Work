@@ -62,7 +62,6 @@ FAULT_SCHEMA = {
     },
     "additionalProperties": True
 }
-
 FILE_READY_SCHEMA = {
     "type": "object",
     "required": [
@@ -185,7 +184,6 @@ FILE_READY_SCHEMA = {
         }
     }
 }
-
 MEASUREMENT_SCHEMA = {
     "type": "object",
     "required": [
@@ -226,8 +224,6 @@ NOTIFICATION_SCHEMA = {
     },
     "additionalProperties": True
 }
-
-
 STATE_CHANGE_SCHEMA = {
     "type": "object",
     "properties": {

@@ -24,6 +24,7 @@
       <li><button class="nav-item" data-view="files"><span class="nav-icon">&#8862;</span><span class="nav-label">Files</span><span class="nav-badge" id="navFilesBadge">0</span></button></li>
       <li><button class="nav-item" data-view="analytics"><span class="nav-icon">&#8767;</span><span class="nav-label">Analytics</span></button></li>
       <li><button class="nav-item" data-view="explorer"><span class="nav-icon">&#9638;</span><span class="nav-label">Event Explorer</span></button></li>
+      <li><button class="nav-item" data-view="system"><span class="nav-icon">&#9678;</span><span class="nav-label">System Health</span></button></li>
     </ul>
     <div class="sidebar-foot">Single-instance collector<br>In-memory store (session only)</div>
   </aside>
@@ -154,7 +155,7 @@
           <p class="panel-note">Files announced via fileReady (stndDefined) events. fileLocation points to the network function's file server &mdash; content is fetched on demand when you click Preview, not stored here.</p>
 
           <div class="controls">
-            <input id="fileSearch" placeholder="Search source, location, or format">
+            <input id="fileSearch" placeholder="Search source, location, format, or File ID">
             <select id="fileFormatFilter">
               <option value="">All Formats</option>
             </select>
@@ -164,7 +165,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>Received</th><th>Source</th><th>Format</th><th>Type</th>
+                  <th>File ID</th><th>Received</th><th>Source</th><th>Format</th><th>Type</th>
                   <th>Size</th><th>Ready Time</th><th>Expires</th><th></th>
                 </tr>
               </thead>
@@ -767,7 +768,7 @@ function renderFiles(){
 
  let rows = cachedFiles.filter(f=>{
    if(formatFilter && f.fileFormat!==formatFilter) return false;
-   const text=((f.sourceName||'')+' '+(f.fileLocation||'')+' '+(f.fileFormat||'')).toLowerCase();
+   const text=((f.sourceName||'')+' '+(f.fileLocation||'')+' '+(f.fileFormat||'')+' '+(f.fileId||'')).toLowerCase();
    if(search && !text.includes(search)) return false;
    return true;
  });
@@ -776,10 +777,11 @@ function renderFiles(){
 
  const table=document.getElementById('filesTable');
  if(rows.length===0){
-   table.innerHTML='<tr><td colspan="8" class="empty-state">No file references yet. Waiting for fileReady events...</td></tr>';
+   table.innerHTML='<tr><td colspan="9" class="empty-state">No file references yet. Waiting for fileReady events...</td></tr>';
  } else {
    table.innerHTML = rows.map(f=>`
      <tr>
+       <td><span class="file-id-chip" data-copy-id="${f.fileId}" title="Click to copy full ID: ${f.fileId}">${(f.fileId||'').slice(0,8)}</span></td>
        <td>${f.receivedAt ? new Date(f.receivedAt).toLocaleTimeString() : '-'}</td>
        <td>${f.sourceName||'-'}</td>
        <td><span class="badge stndDefined">${f.fileFormat||'-'}</span></td>
@@ -789,6 +791,19 @@ function renderFiles(){
        <td>${f.fileExpirationTime||'-'}</td>
        <td><button class="btn small primary" data-file-id="${f.fileId}">Preview</button></td>
      </tr>`).join('');
+
+   table.querySelectorAll('.file-id-chip').forEach(chip=>{
+     chip.addEventListener('click', ()=>{
+       const id = chip.dataset.copyId;
+       if(navigator.clipboard && navigator.clipboard.writeText){
+         navigator.clipboard.writeText(id).then(()=>{
+           const original = chip.textContent;
+           chip.textContent = 'copied!';
+           setTimeout(()=>{ chip.textContent = original; }, 900);
+         }).catch(()=>{});
+       }
+     });
+   });
 
    table.querySelectorAll('button[data-file-id]').forEach(btn=>{
      btn.addEventListener('click', ()=>openFilePreview(btn.dataset.fileId));
@@ -802,164 +817,53 @@ document.getElementById('fileSearch').addEventListener('input', renderFiles);
 document.getElementById('fileFormatFilter').addEventListener('change', renderFiles);
 
 async function openFilePreview(fileId){
-  console.log("Preview clicked:", fileId);
+ const backdrop=document.getElementById('fileModalBackdrop');
+ const body=document.getElementById('fileModalBody');
+ document.getElementById('fileModalName').textContent = 'Loading...';
+ body.innerHTML='<div class="empty-state">Fetching file...</div>';
+ backdrop.classList.add('open');
 
-  const backdrop = document.getElementById('fileModalBackdrop');
-  const body = document.getElementById('fileModalBody');
-  document.getElementById('fileModalName').textContent = 'Loading...';
-  body.innerHTML = '<div class="empty-state">Fetching file...</div>';
-  backdrop.classList.add('open');
+ let result;
+ try{
+   result = await safeFetch(`/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=preview`);
+ } catch(e){
+   body.innerHTML='<div class="empty-state">Could not reach the collector.</div>';
+   return;
+ }
 
-  let result;
-  try {
-    result = await safeFetch(`/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=preview`);
-  } catch(e) {
-    body.innerHTML = '<div class="empty-state">Could not reach the collector.</div>';
-    return;
-  }
+ const meta = result.metadata || {};
+ document.getElementById('fileModalName').textContent = result.filename || meta.sourceName || 'File';
 
-  const meta = result.metadata || {};
-  document.getElementById('fileModalName').textContent = result.filename || meta.sourceName || 'File Document';
+ const metaGrid = `
+  <div class="modal-grid">
+    <div class="modal-stat"><p>Source</p><h4>${meta.sourceName||'&mdash;'}</h4></div>
+    <div class="modal-stat"><p>Format</p><h4>${meta.fileFormat||'&mdash;'}</h4></div>
+    <div class="modal-stat"><p>Data Type</p><h4>${meta.fileDataType||'&mdash;'}</h4></div>
+    <div class="modal-stat"><p>Size</p><h4>${formatBytes(meta.fileSize)}</h4></div>
+    <div class="modal-stat"><p>Ready Time</p><h4>${meta.fileReadyTime||'&mdash;'}</h4></div>
+    <div class="modal-stat"><p>Expires</p><h4>${meta.fileExpirationTime||'&mdash;'}</h4></div>
+  </div>`;
 
-  // Crisp, clean summary header metrics block (Darker control area)
-  const metaHeader = `
-    <div class="doc-viewer-meta">
-      <div class="meta-item"><strong>Source:</strong> <span>${meta.sourceName || '—'}</span></div>
-      <div class="meta-item"><strong>Format:</strong> <span class="badge stndDefined">${meta.fileFormat || '—'}</span></div>
-      <div class="meta-item"><strong>Size:</strong> <span>${formatBytes(meta.fileSize)}</span></div>
-      <div class="meta-item"><strong>Expires:</strong> <span>${meta.fileExpirationTime || '—'}</span></div>
-      <div class="meta-actions-right">
-        <a class="btn small primary" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">&#9660; Download Raw File</a>
-      </div>
-    </div>`;
+ if(!result.fetched){
+   body.innerHTML = metaGrid + `
+     <h5>Content</h5>
+     <div class="empty-state">Not fetched: ${result.reason||'unknown reason'}</div>
+     <div class="modal-actions">
+       <a class="btn small" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Try Download</a>
+     </div>`;
+   return;
+ }
 
-  if(!result.fetched){
-    body.innerHTML = metaHeader + `
-      <div class="document-scroller">
-        <div class="document-canvas error-state">
-          <h5>Document Unavailability Notice</h5>
-          <p>Reason: ${result.reason || 'Unknown internal file system issue'}</p>
-        </div>
-      </div>`;
-    return;
-  }
+ const contentBlock = result.textContent !== undefined && result.textContent !== null
+   ? `<pre>${result.textContent.replace(/</g,'&lt;')}</pre>`
+   : `<div class="empty-state">${result.note || 'Binary content \u2014 use Download to retrieve raw bytes.'}</div>`;
 
-  // Handle file text rendering
-  let contentBlock = '';
-  if (result.textContent !== undefined && result.textContent !== null) {
-    const rawText = result.textContent;
-    const format = (meta.fileFormat || '').toLowerCase();
-
-    // Check if the file is explicitly XML or looks like XML
-    if (format.includes('xml') || rawText.trim().startsWith('<')) {
-      try {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(rawText, "application/xml");
-        
-        // Check for parser errors
-        const parserError = xmlDoc.querySelector('parsererror');
-        if (parserError) throw new Error("Invalid XML structural syntax");
-
-        // Extract key structural components dynamically
-        let meaningfulFields = [];
-        let dataPayloads = [];
-
-        // Traverse nodes to pull out meaningful data elements, avoiding empty text nodes
-        function traverseXML(node) {
-          if (node.nodeType === 1) { // Element Node
-            // If it's a leaf node with text content, capture it
-            if (node.childNodes.length === 1 && node.childNodes[0].nodeType === 3) {
-              const val = node.textContent.trim();
-              if (val) {
-                const fieldData = { name: node.nodeName, value: val };
-                // Group configuration/header info vs raw numeric metrics
-                if (node.nodeName.toLowerCase().includes('time') || 
-                    node.nodeName.toLowerCase().includes('id') || 
-                    node.nodeName.toLowerCase().includes('version') || 
-                    node.nodeName.toLowerCase().includes('name')) {
-                  meaningfulFields.push(fieldData);
-                } else {
-                  dataPayloads.push(fieldData);
-                }
-              }
-            }
-            for (let i = 0; i < node.childNodes.length; i++) {
-              traverseXML(node.childNodes[i]);
-            }
-          }
-        }
-        traverseXML(xmlDoc.documentElement);
-
-        // Fallback check if it's an atypical flat file structure
-        if (meaningfulFields.length === 0 && dataPayloads.length === 0) {
-          contentBlock = `<pre class="document-text-engine">${rawText.replace(/</g, '&lt;')}</pre>`;
-        } else {
-          // Build a beautiful structured view
-          let htmlOutput = '';
-          
-          if (meaningfulFields.length > 0) {
-            htmlOutput += `
-              <h5 class="doc-section-title">Identity & Common Elements</h5>
-              <table class="doc-data-table">
-                <thead><tr><th>Field Parameter</th><th>Value</th></tr></thead>
-                <tbody>
-                  ${meaningfulFields.map(f => `<tr><td><strong>${f.name}</strong></td><td>${f.value}</td></tr>`).join('')}
-                </tbody>
-              </table>`;
-          }
-
-          if (dataPayloads.length > 0) {
-            htmlOutput += `
-              <h5 class="doc-section-title" style="margin-top:24px;">Data Metrics & Managed Objects</h5>
-              <table class="doc-data-table">
-                <thead><tr><th>Metric Indicator</th><th>Value / Reading</th></tr></thead>
-                <tbody>
-                  ${dataPayloads.map(f => `<tr><td>${f.name}</td><td><span class="doc-metric-value">${f.value}</span></td></tr>`).join('')}
-                </tbody>
-              </table>`;
-          }
-          
-          contentBlock = htmlOutput;
-        }
-
-      } catch (err) {
-        // Fallback to text dump if parsing crashes
-        console.warn("XML Parsing engine failed, falling back to plaintext:", err);
-        const safeText = rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        contentBlock = `<pre class="document-text-engine">${safeText}</pre>`;
-      }
-    } else {
-      // Handle normal non-XML text files
-      const safeText = rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      contentBlock = `<pre class="document-text-engine">${safeText}</pre>`;
-    }
-  } else {
-    contentBlock = `
-      <div class="binary-placeholder">
-        <p><strong>Binary File Content Stream</strong></p>
-        <p class="panel-note">Content type (${result.contentType || 'unknown'}) cannot be processed safely as text layouts.</p>
-      </div>`;
-  }
-
-  // Assembling the paper sheet interface wrapper
-  body.innerHTML = metaHeader + `
-    <div class="document-scroller">
-      <div class="document-canvas">
-        <div class="document-canvas-header">
-          <div class="doc-title-block">
-            <h4>${result.filename || 'File Data Payload Summary'}</h4>
-            <small>Content-Type: ${result.contentType || 'text/plain'} &middot; Data Type: ${meta.fileDataType || 'Raw Metric Data'}</small>
-          </div>
-          <div class="doc-timestamp-block">
-            <small>Ready: ${meta.fileReadyTime || '—'}</small>
-          </div>
-        </div>
-        <hr class="doc-divider" />
-        <div class="document-content-view">
-          ${contentBlock}
-        </div>
-      </div>
-    </div>`;
+ body.innerHTML = metaGrid + `
+   <h5>Content <span class="count-pill">${result.contentType||''} &middot; ${formatBytes(result.sizeBytes)}</span></h5>
+   ${contentBlock}
+   <div class="modal-actions">
+     <a class="btn small primary" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Download</a>
+   </div>`;
 }
 
 document.getElementById('fileModalClose').addEventListener('click', ()=>{
@@ -1314,7 +1218,7 @@ async function refresh(){
  renderAlarms();
  if(currentView==='analytics') renderAnalytics();
 }
-  
+
 refresh();
 setInterval(refresh, 3000);
 </script>
