@@ -5,6 +5,7 @@ from routes.devices import devices_bp
 from routes.stats import stats_bp
 from routes.dashboard import dashboard_bp
 from routes.filereferences import filereferences_bp
+from routes.pnf import pnf_bp
 from services.file_ready_service import is_file_ready_event, process_file_ready
 
 app = Flask(
@@ -19,6 +20,7 @@ app.register_blueprint(devices_bp)
 app.register_blueprint(stats_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(filereferences_bp)
+app.register_blueprint(pnf_bp)
 
 
 if __name__ == "__main__":

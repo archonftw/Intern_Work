@@ -345,6 +345,9 @@ PNF_REGISTRATION_SCHEMA = {
                 },
                 "keyId": {
                     "type": "string"
+                },
+                "vendorName":{
+                    "type":"string"
                 }
             },
             "additionalProperties": True

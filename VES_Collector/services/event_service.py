@@ -9,7 +9,7 @@ from jsonschema import validate
 from schemas.schema import VES_SCHEMA
 
 from storage.memory import EVENT_STORE
-
+from services.pnf_service import process_pnf_registration
 from services.validation import validate_domain
 from services.device_service import update_device
 from services.stnd_service import process_stnd
@@ -25,19 +25,12 @@ def process_event(event):
     domain = event["commonEventHeader"]["domain"]
 
     if domain == "pnfRegistration":
-        process_pnf(event)
+        process_pnf_registration({
+            "event": event
+        })
 
     elif domain == "stndDefined":
         process_stnd(event)
-
-def process_pnf(event):
-
-    header = event["commonEventHeader"]
-
-    logger.info(
-        "[PNF REGISTRATION] Device=%s",
-        header.get("reportingEntityName", "UNKNOWN")
-    )
 
 
 
