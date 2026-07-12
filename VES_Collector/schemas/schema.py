@@ -311,10 +311,12 @@ PNF_REGISTRATION_SCHEMA = {
             "type": "string"
         },
         "oamV4IpAddress": {
-            "type": "string"
+            "type": "string",
+            "format":"ipv4"
         },
         "oamV6IpAddress": {
-            "type": "string"
+            "type": "string",
+            "format":"ipv6"
         },
         "serialNumber": {
             "type": "string"

@@ -21,6 +21,7 @@
       <li><button class="nav-item active" data-view="overview"><span class="nav-icon">&#9635;</span><span class="nav-label">Overview</span></button></li>
       <li><button class="nav-item" data-view="alarms"><span class="nav-icon">&#9650;</span><span class="nav-label">Alarms</span><span class="nav-badge alert" id="navAlarmBadge">0</span></button></li>
       <li><button class="nav-item" data-view="devices"><span class="nav-icon">&#9637;</span><span class="nav-label">Devices</span><span class="nav-badge" id="navDeviceBadge">0</span></button></li>
+      <li><button class="nav-item" data-view="pnf"><span class="nav-icon">&#9889;</span><span class="nav-label">PNF Registration</span><span class="nav-badge" id="navPnfBadge">0</span></button></li>
       <li><button class="nav-item" data-view="files"><span class="nav-icon">&#8862;</span><span class="nav-label">Files</span><span class="nav-badge" id="navFilesBadge">0</span></button></li>
       <li><button class="nav-item" data-view="analytics"><span class="nav-icon">&#8767;</span><span class="nav-label">Analytics</span></button></li>
       <li><button class="nav-item" data-view="explorer"><span class="nav-icon">&#9638;</span><span class="nav-label">Event Explorer</span></button></li>
@@ -41,7 +42,6 @@
 
     <div class="views">
 
-      <!-- ============================= OVERVIEW ============================= -->
       <section class="view-panel active" id="view-overview">
 
         <div class="stats">
@@ -81,7 +81,6 @@
 
       </section>
 
-      <!-- ============================== ALARMS =============================== -->
       <section class="view-panel" id="view-alarms">
 
         <div class="panel">
@@ -122,7 +121,6 @@
 
       </section>
 
-      <!-- ============================== DEVICES =============================== -->
       <section class="view-panel" id="view-devices">
 
         <div class="panel">
@@ -146,7 +144,33 @@
 
       </section>
 
-      <!-- ============================== FILES =============================== -->
+      <section class="view-panel" id="view-pnf">
+
+        <div class="panel">
+          <h3>PNF Registration <span class="count-pill" id="pnfCountPill">0 registered</span></h3>
+          
+          <div class="controls">
+            <input id="pnfSearch" placeholder="Search PNF name, vendor, or IP address">
+            <select id="pnfVendorFilter">
+              <option value="">All Vendors</option>
+            </select>
+          </div>
+
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th><th>PNF Name</th><th>Vendor</th><th>Model</th>
+                  <th>OAM IP</th><th>Protocol</th><th>Port</th><th>Username</th><th>Key ID</th><th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="pnfsTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
       <section class="view-panel" id="view-files">
 
         <div class="panel">
@@ -179,7 +203,6 @@
 
       </section>
 
-      <!-- ============================== ANALYTICS =============================== -->
       <section class="view-panel" id="view-analytics">
 
         <div class="panel">
@@ -201,7 +224,6 @@
 
       </section>
 
-      <!-- ============================== EXPLORER =============================== -->
       <section class="view-panel" id="view-explorer">
 
         <div class="panel details">
@@ -251,7 +273,6 @@
 
       </section>
 
-      <!-- ============================== SYSTEM =============================== -->
       <section class="view-panel" id="view-system">
 
         <div class="panel">
@@ -278,7 +299,6 @@
 
 <div class="toast-stack" id="toastStack"></div>
 
-<!-- Device detail modal -->
 <div class="modal-backdrop" id="deviceModalBackdrop">
   <div class="modal">
     <div class="modal-head">
@@ -289,7 +309,6 @@
   </div>
 </div>
 
-<!-- File preview modal -->
 <div class="modal-backdrop" id="fileModalBackdrop">
   <div class="modal">
     <div class="modal-head">
@@ -300,6 +319,34 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="pnfModalBackdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Configure PNF Forwarding</h3>
+      <button class="modal-close" id="pnfModalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem;">
+        <div>
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Forward Host</label>
+          <input type="text" id="pnfForwardHost" style="width:100%;" placeholder="e.g. 10.0.0.1">
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Forward Port</label>
+          <input type="text" id="pnfForwardPort" style="width:100%;" placeholder="e.g. 8443">
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Forward Path</label>
+          <input type="text" id="pnfForwardPath" style="width:100%;" placeholder="e.g. /api/v1/pnfs">
+        </div>
+      </div>
+      <div class="modal-actions" style="display:flex; justify-content:flex-end;">
+        <button class="btn primary" id="savePnfConfigBtn">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    State
@@ -307,6 +354,7 @@
 let cachedEvents = [];
 let cachedDevices = [];
 let cachedFiles = [];
+let cachedPNFs = [];
 let domainChart = null, trendChart = null, modalChart = null;
 let chartInitialized = false;
 let currentView = 'overview';
@@ -322,6 +370,7 @@ const VIEW_META = {
   overview:  { title:'Overview',        subtitle:'Live network event summary' },
   alarms:    { title:'Alarms',          subtitle:'Correlated fault & threshold conditions' },
   devices:   { title:'Devices',         subtitle:'All reporting network functions' },
+  pnf:       { title:'PNF Registration',subtitle:'Registered Physical Network Functions' },
   files:     { title:'Files',           subtitle:'fileReady references from stndDefined events' },
   analytics: { title:'Analytics',       subtitle:'Per-device KPI trends over time' },
   explorer:  { title:'Event Explorer',  subtitle:'Raw event stream, searchable & sortable' },
@@ -341,6 +390,7 @@ function switchView(view){
   document.getElementById('sidebar').classList.remove('open');
 
   if(view==='analytics') renderAnalytics();
+  if(view==='pnf') renderPNFs();
 }
 
 document.querySelectorAll('.nav-item').forEach(btn=>{
@@ -362,13 +412,15 @@ document.addEventListener('keydown', (e)=>{
 
 document.getElementById('globalSearch').addEventListener('input', (e)=>{
   const val = e.target.value;
-  if(val.length>0 && currentView!=='explorer' && currentView!=='devices'){
+  if(val.length>0 && currentView!=='explorer' && currentView!=='devices' && currentView!=='pnf'){
     switchView('explorer');
   }
   document.getElementById('searchBox').value = val;
   document.getElementById('deviceSearch').value = val;
+  document.getElementById('pnfSearch').value = val;
   renderEvents();
   renderDevices();
+  renderPNFs();
 });
 
 /* ============================================================
@@ -730,6 +782,185 @@ document.getElementById('modalClose').addEventListener('click', ()=>{
 });
 document.getElementById('deviceModalBackdrop').addEventListener('click', (e)=>{
  if(e.target.id==='deviceModalBackdrop') e.target.classList.remove('open');
+});
+
+/* ============================================================
+   PNF Registration Loading & Rendering
+   ============================================================ */
+async function loadPNFs() {
+  try {
+    const response = await safeFetch('/api/pnf');
+    cachedPNFs = response || [];
+    populatePnfVendorFilter();
+    renderPNFs();
+    updateNavBadges();
+  } catch(e) {
+    return;
+  }
+}
+
+function populatePnfVendorFilter() {
+  const select = document.getElementById('pnfVendorFilter');
+  const current = select.value;
+  const vendors = [...new Set(cachedPNFs.map(p => p.vendor).filter(Boolean))].sort();
+  select.innerHTML = '<option value="">All Vendors</option>' + vendors.map(v => `<option value="${v}">${v}</option>`).join('');
+  select.value = vendors.includes(current) ? current : '';
+}
+
+function renderPNFs() {
+
+  const search = (
+    document.getElementById('pnfSearch').value || ''
+  ).toLowerCase();
+
+  const vendorFilter =
+    document.getElementById('pnfVendorFilter').value;
+
+
+  let rows = cachedPNFs.filter(p => {
+
+    const vendor = p.vendorName || '';
+    const name = p.unitType || '';
+    const ip = p.oamV4IpAddress || '';
+
+    if(vendorFilter && vendor !== vendorFilter)
+      return false;
+
+
+    const text =
+      (
+        vendor +
+        " " +
+        name +
+        " " +
+        ip +
+        " " +
+        (p.modelNumber || '')
+      ).toLowerCase();
+
+
+    if(search && !text.includes(search))
+      return false;
+
+
+    return true;
+  });
+
+
+
+  document.getElementById('pnfCountPill').textContent =
+      `${cachedPNFs.length} registered`;
+
+
+  const table =
+      document.getElementById('pnfsTable');
+
+
+  if(rows.length === 0){
+
+    table.innerHTML =
+    `
+    <tr>
+      <td colspan="10" class="empty-state">
+        No PNF registration records found
+      </td>
+    </tr>
+    `;
+
+    return;
+  }
+
+
+
+  table.innerHTML = rows.map(p => {
+
+    return `
+    <tr>
+
+      <td>
+        ${p.receivedTime || '-'}
+      </td>
+
+
+      <td>
+        <b>${p.unitType || '-'}</b>
+      </td>
+
+
+      <td>
+        ${p.vendorName || '-'}
+      </td>
+
+
+      <td>
+        ${p.modelNumber || '-'}
+      </td>
+
+
+      <td>
+        ${p.oamV4IpAddress || '-'}
+      </td>
+
+
+      <td>
+        <span class="badge heartbeat">
+          ${p.protocol || '-'}
+        </span>
+      </td>
+
+
+      <td>
+        -
+      </td>
+
+
+      <td>
+        ${p.username || '-'}
+      </td>
+
+
+      <td>
+        -
+      </td>
+
+
+      <td>
+        <button class="btn small primary">
+          Forward
+        </button>
+      </td>
+
+    </tr>
+    `;
+
+  }).join('');
+
+}
+
+document.getElementById('pnfModalClose').addEventListener('click', () => {
+  document.getElementById('pnfModalBackdrop').classList.remove('open');
+});
+document.getElementById('pnfModalBackdrop').addEventListener('click', (e) => {
+  if (e.target.id === 'pnfModalBackdrop') e.target.classList.remove('open');
+});
+
+document.getElementById('savePnfConfigBtn').addEventListener('click', async () => {
+  const host = document.getElementById('pnfForwardHost').value;
+  const port = document.getElementById('pnfForwardPort').value;
+  const path = document.getElementById('pnfForwardPath').value;
+
+  try {
+    const response = await fetch('/api/pnf/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, port, path })
+    });
+    if (response.ok) {
+      document.getElementById('pnfModalBackdrop').classList.remove('open');
+    }
+  } catch(e) {
+    // Error feedback handling
+  }
 });
 
 /* ============================================================
@@ -1116,6 +1347,8 @@ function updateNavBadges(groups){
  badge.classList.toggle('alert', openCount>0);
  document.getElementById('navDeviceBadge').textContent = cachedDevices.length;
  document.getElementById('navFilesBadge').textContent = cachedFiles.length;
+ const pnfBadge = document.getElementById('navPnfBadge');
+ if (pnfBadge) pnfBadge.textContent = cachedPNFs.length;
 }
 
 /* ============================================================
@@ -1213,9 +1446,11 @@ async function refresh(){
  await loadStats();
  await loadEvents();
  await loadDevices();
+ await loadPNFs();
  await loadFiles();
  renderAlarms();
  if(currentView==='analytics') renderAnalytics();
+ if(currentView==='pnf') renderPNFs();
 }
 
 refresh();

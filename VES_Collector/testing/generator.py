@@ -229,6 +229,9 @@ def pnf_registration_event(device=None):
                         "HTTPS",
                         "NETCONF"
                     ]),
+                    "vendorName":random.choice([
+                        "Radisys","Ercission","Nokia","Samsung"
+                    ]),
                     "username": "root",
                     "password": "root",
                     "port": random.choice([

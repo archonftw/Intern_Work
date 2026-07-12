@@ -606,3 +606,80 @@ table th:nth-child(5), table td:nth-child(5){ width:12%; }
 ::-webkit-scrollbar-track{ background:transparent; }
 ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
 ::-webkit-scrollbar-thumb:hover{ background:var(--text-faint); }
+
+/* ==========================================================================
+   PNF Registration & Table Modifications
+   ========================================================================== */
+
+/* Navigation Badge styling specific to PNF item */
+.nav-badge#navPnfBadge {
+  background-color: var(--accent, #6cc3ff);
+  color: #10151c;
+}
+
+/* Domain Highlight Badge for PNF Protocol metadata */
+.badge.heartbeat {
+  background: rgba(108, 195, 255, 0.15);
+  color: #6cc3ff;
+  border: 1px solid rgba(108, 195, 255, 0.3);
+}
+
+/* ==========================================================================
+   Modal Form Inputs (Additions for Forwarding Config)
+   ========================================================================== */
+
+.modal-body input[type="text"] {
+  background: #161b22;
+  border: 1px solid var(--border, #2f363d);
+  border-radius: 4px;
+  color: #c9d1d9;
+  padding: 10px 12px;
+  font-family: 'IBM Plex Sans', monospace, sans-serif;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.modal-body input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent, #22d3c7);
+  box-shadow: 0 0 0 2px rgba(34, 211, 199, 0.15);
+}
+
+.modal-body label {
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ==========================================================================
+   Utility Layout Fixes for Data Tables inside view-pnf
+   ========================================================================== */
+
+#view-pnf table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+#view-pnf td {
+  padding: 12px;
+  vertical-align: middle;
+}
+
+#view-pnf b {
+  color: #ffffff;
+}
+
+#view-pnf small {
+  font-family: monospace;
+  color: var(--text-muted, #8b96a6);
+}
+
+.table-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto; /* Dynamically sizes columns to fit contents */
+}
+
+#view-pnf .table-scroll {
+  overflow-x: auto;   /* Gracefully scrolls horizontally on smaller windows */
+  width: 100%;
+}
