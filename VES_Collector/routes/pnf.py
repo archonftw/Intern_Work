@@ -12,12 +12,31 @@ pnf_bp = Blueprint("pnf", __name__)
 
 
 # ==========================================================
+# Helpers
+# ==========================================================
+
+def _mask_pnf(pnf):
+    """
+    Returns a copy of a PNF record safe to expose over the API —
+    credentials are masked the same way they are before logging.
+    """
+    masked = dict(pnf)
+    if masked.get("password"):
+        masked["password"] = "********"
+    return masked
+
+
+def _mask_pnfs(pnfs):
+    return [_mask_pnf(p) for p in pnfs]
+
+
+# ==========================================================
 # Get all PNF registrations
 # ==========================================================
 
 @pnf_bp.route("/api/pnf", methods=["GET"])
 def get_pnfs():
-    return jsonify(get_all_pnfs())
+    return jsonify(_mask_pnfs(get_all_pnfs()))
 
 
 # ==========================================================
@@ -29,7 +48,7 @@ def search():
 
     query = request.args.get("q", "")
 
-    return jsonify(search_pnfs(query))
+    return jsonify(_mask_pnfs(search_pnfs(query)))
 
 
 # ==========================================================
@@ -47,9 +66,20 @@ def update_config():
 
     body = request.json or {}
 
+    port = body.get("port")
+    if port is not None and port != "":
+        try:
+            port = int(port)
+        except (TypeError, ValueError):
+            return jsonify({
+                "error": "port must be a valid integer"
+            }), 400
+    else:
+        port = None
+
     config = update_forward_config(
         host=body.get("host"),
-        port=body.get("port"),
+        port=port,
         path=body.get("path")
     )
 
@@ -61,6 +91,9 @@ def update_config():
 
 # ==========================================================
 # Forward all stored PNF registrations
+# (retry/backfill utility — new events are already forwarded
+# automatically as they arrive; this exists for re-sending
+# records that failed, e.g. before a destination was configured)
 # ==========================================================
 
 @pnf_bp.route("/api/pnf/forward", methods=["POST"])

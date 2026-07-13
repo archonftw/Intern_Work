@@ -90,7 +90,13 @@
           <div class="alarm-summary-strip" id="alarmSummaryStrip"></div>
 
           <div class="controls">
-            <input id="alarmSearch" placeholder="Search device or condition">
+            <input id="alarmSearch" placeholder="Search device, condition, or domain &middot; space-separate multiple terms">
+            <select id="alarmDomainFilter">
+              <option value="">All Domains</option>
+              <option value="fault">fault</option>
+              <option value="stndDefined">stndDefined</option>
+              <option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
+            </select>
             <select id="alarmSeverityFilter">
               <option value="">All Severities</option>
               <option value="CRITICAL">Critical</option>
@@ -103,6 +109,12 @@
               <option value="all">All alarms</option>
               <option value="acked">Acknowledged only</option>
             </select>
+            <select id="alarmTimeRangeFilter">
+              <option value="">All Time</option>
+              <option value="15m">Last 15 min</option>
+              <option value="1h">Last 1 hour</option>
+              <option value="24h">Last 24 hours</option>
+            </select>
             <button class="btn" id="clearAcksBtn">Clear all acks</button>
           </div>
 
@@ -110,8 +122,14 @@
             <table>
               <thead>
                 <tr>
-                  <th>Severity</th><th>Device</th><th>Condition</th><th>Domain</th>
-                  <th>First Seen</th><th>Last Seen</th><th>Occurrences</th><th>Ack</th>
+                  <th data-sort="severity">Severity <span class="sort-arrow"></span></th>
+                  <th data-sort="device">Device <span class="sort-arrow"></span></th>
+                  <th data-sort="condition">Condition <span class="sort-arrow"></span></th>
+                  <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
+                  <th data-sort="firstSeen">First Seen <span class="sort-arrow"></span></th>
+                  <th data-sort="lastSeen">Last Seen <span class="sort-arrow"></span></th>
+                  <th data-sort="occurrences">Occurrences <span class="sort-arrow"></span></th>
+                  <th>Ack</th>
                 </tr>
               </thead>
               <tbody id="alarmsTable"></tbody>
@@ -147,8 +165,11 @@
       <section class="view-panel" id="view-pnf">
 
         <div class="panel">
-          <h3>PNF Registration <span class="count-pill" id="pnfCountPill">0 registered</span></h3>
-          
+          <h3>PNF Registration <span class="count-pill" id="pnfCountPill">0 registered</span>
+            <button class="btn small" id="configurePnfForwardBtn">Configure Forwarding &rarr;</button>
+          </h3>
+          <p class="panel-note">Every registered PNF is forwarded automatically to the destination below as soon as it's received &mdash; this panel only controls where forwarded records are sent, not whether forwarding happens.</p>
+
           <div class="controls">
             <input id="pnfSearch" placeholder="Search PNF name, vendor, or IP address">
             <select id="pnfVendorFilter">
@@ -161,7 +182,7 @@
               <thead>
                 <tr>
                   <th>Time</th><th>PNF Name</th><th>Vendor</th><th>Model</th>
-                  <th>OAM IP</th><th>Protocol</th><th>Port</th><th>Username</th><th>Key ID</th><th>Action</th>
+                  <th>OAM IP</th><th>Protocol</th><th>Username</th><th>Forward Status</th><th></th>
                 </tr>
               </thead>
               <tbody id="pnfsTable"></tbody>
@@ -273,26 +294,6 @@
 
       </section>
 
-      <section class="view-panel" id="view-system">
-
-        <div class="panel">
-          <h3>Pipeline Health</h3>
-          <p class="panel-note">Computed client-side from API responses &mdash; there's no queue or multi-instance metrics yet, so this reflects this single collector process only.</p>
-          <div class="health-grid" id="healthGrid"></div>
-        </div>
-
-        <div class="panel">
-          <h3>Domain Breakdown</h3>
-          <div class="table-scroll">
-            <table id="domainBreakdownTable">
-              <thead><tr><th>Domain</th><th>Count</th><th>Share</th><th></th></tr></thead>
-              <tbody id="domainBreakdownBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-      </section>
-
     </div>
   </div>
 </div>
@@ -359,6 +360,7 @@ let domainChart = null, trendChart = null, modalChart = null;
 let chartInitialized = false;
 let currentView = 'overview';
 let explorerSort = { key:'receivedAt', dir:'desc' };
+let alarmSort = { key: null, dir: 'asc' };
 let ackedAlarms = new Set(JSON.parse(localStorage.getItem('vesAckedAlarms') || '[]'));
 let toastedEventIds = new Set();
 let firstLoad = true;
@@ -374,7 +376,6 @@ const VIEW_META = {
   files:     { title:'Files',           subtitle:'fileReady references from stndDefined events' },
   analytics: { title:'Analytics',       subtitle:'Per-device KPI trends over time' },
   explorer:  { title:'Event Explorer',  subtitle:'Raw event stream, searchable & sortable' },
-  system:    { title:'System Health',   subtitle:'Collector pipeline diagnostics' },
 };
 
 /* ============================================================
@@ -422,10 +423,6 @@ document.getElementById('globalSearch').addEventListener('input', (e)=>{
   renderDevices();
   renderPNFs();
 });
-
-/* ============================================================
-   Clock
-   ============================================================ */
 function tickClock(){
   document.getElementById('clock').textContent = new Date().toLocaleTimeString();
 }
@@ -433,9 +430,7 @@ setInterval(tickClock, 1000);
 tickClock();
 
 
-/* ============================================================
-   Stats + domain chart
-   ============================================================ */
+
 async function loadStats(){
  let stats;
  try{ stats = await safeFetch('/api/stats'); } catch(e){ return; }
@@ -460,8 +455,6 @@ async function loadStats(){
     domainChart.data.datasets[0].data = data;
     domainChart.update();
  }
-
- renderDomainBreakdown(stats);
 }
 
 function createDomainChart(data){
@@ -482,29 +475,6 @@ function createDomainChart(data){
    plugins:{ legend:{ position:'bottom', labels:{ color:'#8b96a6', font:{ family:'IBM Plex Sans', size:11 }, boxWidth:10, padding:12 } } }
   }
  });
-}
-
-function renderDomainBreakdown(stats){
- const body=document.getElementById('domainBreakdownBody');
- const rows=[
-   ['fault', stats.faultEvents], ['measurement', stats.measurementEvents],
-   ['heartbeat', stats.heartbeatEvents], ['notification', stats.notificationEvents],
-   ['stateChange', stats.stateChangeEvents], ['thresholdCrossingAlert', stats.thresholdEvents],
-   ['pnfRegistration', stats.pnfRegistrationEvents], ['stndDefined', stats.stndDefinedEvents],
- ];
- const total = stats.totalEvents || 1;
- body.innerHTML = rows.map(([domain,count])=>{
-   const pct = Math.round(((count||0)/total)*1000)/10;
-   return `<tr>
-     <td><span class="badge ${domain}">${domain}</span></td>
-     <td>${count||0}</td>
-     <td>${pct}%</td>
-     <td style="width:120px"><div style="background:var(--border);height:5px;border-radius:3px;overflow:hidden;"><div style="width:${pct}%;background:var(--accent);height:100%;"></div></div></td>
-   </tr>`;
- }).join('');
-
- // system health cards
- renderHealthGrid(stats);
 }
 
 /* ============================================================
@@ -634,13 +604,9 @@ function exportCsv(){
  URL.revokeObjectURL(url);
 }
 document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
-
 document.getElementById('searchBox').addEventListener('input',renderEvents);
 document.getElementById('domainFilter').addEventListener('change',renderEvents);
 document.getElementById('deviceFilter').addEventListener('change',renderEvents);
-
-
-
 async function loadDevices(){
  try{ cachedDevices = await safeFetch('/api/devices'); } catch(e){ return; }
  renderDevices();
@@ -802,7 +768,9 @@ async function loadPNFs() {
 function populatePnfVendorFilter() {
   const select = document.getElementById('pnfVendorFilter');
   const current = select.value;
-  const vendors = [...new Set(cachedPNFs.map(p => p.vendor).filter(Boolean))].sort();
+  // FIX: PNF records use "vendorName", not "vendor" — this dropdown
+  // was always empty because it was reading the wrong field.
+  const vendors = [...new Set(cachedPNFs.map(p => p.vendorName).filter(Boolean))].sort();
   select.innerHTML = '<option value="">All Vendors</option>' + vendors.map(v => `<option value="${v}">${v}</option>`).join('');
   select.value = vendors.includes(current) ? current : '';
 }
@@ -861,7 +829,7 @@ function renderPNFs() {
     table.innerHTML =
     `
     <tr>
-      <td colspan="10" class="empty-state">
+      <td colspan="9" class="empty-state">
         No PNF registration records found
       </td>
     </tr>
@@ -869,8 +837,6 @@ function renderPNFs() {
 
     return;
   }
-
-
 
   table.innerHTML = rows.map(p => {
 
@@ -881,26 +847,21 @@ function renderPNFs() {
         ${p.receivedTime || '-'}
       </td>
 
-
       <td>
         <b>${p.unitType || '-'}</b>
       </td>
-
 
       <td>
         ${p.vendorName || '-'}
       </td>
 
-
       <td>
         ${p.modelNumber || '-'}
       </td>
 
-
       <td>
         ${p.oamV4IpAddress || '-'}
       </td>
-
 
       <td>
         <span class="badge heartbeat">
@@ -908,26 +869,18 @@ function renderPNFs() {
         </span>
       </td>
 
-
-      <td>
-        -
-      </td>
-
-
       <td>
         ${p.username || '-'}
       </td>
 
-
       <td>
-        -
+        ${pnfForwardStatusHtml(p)}
       </td>
 
-
       <td>
-        <button class="btn small primary">
-          Forward
-        </button>
+        ${p.forwarded === false
+          ? `<button class="btn small primary pnf-retry-btn" data-oam="${p.oamV4IpAddress}">Retry</button>`
+          : ''}
       </td>
 
     </tr>
@@ -935,7 +888,45 @@ function renderPNFs() {
 
   }).join('');
 
+  // Retry only shows up for records that failed to forward automatically —
+  // there's no per-event "click to forward" action anymore since every
+  // event is forwarded automatically on ingestion.
+  table.querySelectorAll('.pnf-retry-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Retrying...';
+      try {
+        await fetch('/api/pnf/forward', { method: 'POST' });
+      } catch(e) {
+        // ignore, will just re-show as failed on next refresh
+      }
+      await loadPNFs();
+    });
+  });
+
 }
+
+function pnfForwardStatusHtml(p){
+  if(p.forwarded === true){
+    return `<span class="badge good" title="${p.forwardedAt ? 'Forwarded at '+p.forwardedAt : ''}">forwarded</span>`;
+  }
+  if(p.forwarded === false){
+    return `<span class="badge bad" title="${p.forwardError || 'Unknown error'}">failed</span>`;
+  }
+  return `<span class="badge">pending</span>`;
+}
+
+document.getElementById('pnfSearch').addEventListener('input', renderPNFs);
+document.getElementById('pnfVendorFilter').addEventListener('change', renderPNFs);
+
+document.getElementById('configurePnfForwardBtn').addEventListener('click', async () => {
+  let cfg = {};
+  try { cfg = await safeFetch('/api/pnf/config'); } catch(e) { /* fall back to blank fields */ }
+  document.getElementById('pnfForwardHost').value = cfg.host || '';
+  document.getElementById('pnfForwardPort').value = cfg.port || '';
+  document.getElementById('pnfForwardPath').value = cfg.path || '';
+  document.getElementById('pnfModalBackdrop').classList.add('open');
+});
 
 document.getElementById('pnfModalClose').addEventListener('click', () => {
   document.getElementById('pnfModalBackdrop').classList.remove('open');
@@ -957,6 +948,10 @@ document.getElementById('savePnfConfigBtn').addEventListener('click', async () =
     });
     if (response.ok) {
       document.getElementById('pnfModalBackdrop').classList.remove('open');
+      // Config just changed — sweep any records that previously failed
+      // (e.g. because no destination was set) and retry them now.
+      try { await fetch('/api/pnf/forward', { method: 'POST' }); } catch(e) {}
+      await loadPNFs();
     }
   } catch(e) {
     // Error feedback handling
@@ -982,6 +977,7 @@ function populateFileFormatFilter(){
  select.innerHTML='<option value="">All Formats</option>' + formats.map(f=>`<option value="${f}">${f}</option>`).join('');
  select.value = formats.includes(current) ? current : '';
 }
+
 
 function formatBytes(bytes){
  if(bytes===undefined || bytes===null) return '-';
@@ -1035,13 +1031,21 @@ function renderFiles(){
      });
    });
 
-   table.querySelectorAll('button[data-file-id]').forEach(btn=>{
-     btn.addEventListener('click', ()=>openFilePreview(btn.dataset.fileId));
+   // FIX: wire up the Preview buttons — this listener never existed
+   // before, which is why clicking Preview did nothing.
+   table.querySelectorAll('button[data-file-id]').forEach(btn => {
+     btn.addEventListener('click', () => {
+       openFilePreview(btn.dataset.fileId);
+     });
    });
  }
 
+ 
  document.getElementById('filesCount').textContent = `${rows.length} files shown`;
 }
+
+
+
 
 document.getElementById('fileSearch').addEventListener('input', renderFiles);
 document.getElementById('fileFormatFilter').addEventListener('change', renderFiles);
@@ -1260,6 +1264,15 @@ function computeAlarmGroups(){
 
 function saveAcks(){ localStorage.setItem('vesAckedAlarms', JSON.stringify([...ackedAlarms])); }
 
+function alarmWithinTimeRange(lastSeen, range){
+  if(!range) return true;
+  const spans = { '15m': 15*60000, '1h': 60*60000, '24h': 24*60*60000 };
+  const span = spans[range];
+  if(!span) return true;
+  const age = Date.now() - new Date(lastSeen).getTime();
+  return age <= span;
+}
+
 function renderAlarmSummary(groups, stripId, pillId){
  const active = groups.filter(g=>g.severity!=='CLEARED');
  const counts = { CRITICAL:0, MAJOR:0, WARNING:0 };
@@ -1284,18 +1297,46 @@ function renderAlarms(){
  renderAlarmSummary(groups, 'overviewAlarmStrip', 'overviewAlarmPill');
 
  const search=(document.getElementById('alarmSearch').value||'').toLowerCase();
+ const searchTerms = search.split(/\s+/).filter(Boolean);
+ const domainFilter=document.getElementById('alarmDomainFilter').value;
  const sevFilter=document.getElementById('alarmSeverityFilter').value;
  const ackFilter=document.getElementById('alarmAckFilter').value;
+ const timeRangeFilter=document.getElementById('alarmTimeRangeFilter').value;
 
  let filtered = groups.filter(g=>{
-   const text=(g.device+' '+g.condition).toLowerCase();
-   if(search && !text.includes(search)) return false;
+   const text=(g.device+' '+g.condition+' '+g.domain).toLowerCase();
+   if(searchTerms.length && !searchTerms.every(t=>text.includes(t))) return false;
+   if(domainFilter && g.domain!==domainFilter) return false;
    if(sevFilter && g.severity!==sevFilter) return false;
+   if(!alarmWithinTimeRange(g.lastSeen, timeRangeFilter)) return false;
    const acked = ackedAlarms.has(g.key);
    if(ackFilter==='unacked' && acked) return false;
    if(ackFilter==='acked' && !acked) return false;
    return true;
  });
+
+ document.querySelectorAll('#view-alarms thead th[data-sort]').forEach(th=>{
+   th.classList.toggle('sorted', th.dataset.sort===alarmSort.key);
+   th.querySelector('.sort-arrow').textContent = th.dataset.sort===alarmSort.key ? (alarmSort.dir==='asc'?'\u2191':'\u2193') : '';
+ });
+
+ if(alarmSort.key){
+   filtered.sort((a,b)=>{
+     let av=a[alarmSort.key], bv=b[alarmSort.key];
+     if(alarmSort.key==='occurrences'){
+       av = av||0; bv = bv||0;
+     } else if(alarmSort.key==='firstSeen' || alarmSort.key==='lastSeen'){
+       av = new Date(av||0).getTime(); bv = new Date(bv||0).getTime();
+     } else if(alarmSort.key==='severity'){
+       av = severityRank(av); bv = severityRank(bv);
+     } else {
+       av = (av||'').toString().toLowerCase(); bv = (bv||'').toString().toLowerCase();
+     }
+     if(av<bv) return alarmSort.dir==='asc'?-1:1;
+     if(av>bv) return alarmSort.dir==='asc'?1:-1;
+     return 0;
+   });
+ }
 
  const table=document.getElementById('alarmsTable');
  if(filtered.length===0){
@@ -1330,9 +1371,20 @@ function renderAlarms(){
  updateNavBadges(groups);
 }
 
+document.querySelectorAll('#view-alarms thead th[data-sort]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key=th.dataset.sort;
+    if(alarmSort.key===key){ alarmSort.dir = alarmSort.dir==='asc'?'desc':'asc'; }
+    else { alarmSort = { key, dir:'asc' }; }
+    renderAlarms();
+  });
+});
+
 document.getElementById('alarmSearch').addEventListener('input', renderAlarms);
+document.getElementById('alarmDomainFilter').addEventListener('change', renderAlarms);
 document.getElementById('alarmSeverityFilter').addEventListener('change', renderAlarms);
 document.getElementById('alarmAckFilter').addEventListener('change', renderAlarms);
+document.getElementById('alarmTimeRangeFilter').addEventListener('change', renderAlarms);
 document.getElementById('clearAcksBtn').addEventListener('click', ()=>{
  ackedAlarms.clear();
  saveAcks();
@@ -1385,61 +1437,6 @@ function showToast(event){
 }
 
 /* ============================================================
-   System health
-   ============================================================ */
-let lastHealthLatency = null;
-
-async function pingHealthcheck(){
- const start = performance.now();
- try{
-   const res = await safeFetch('/healthcheck');
-   lastHealthLatency = Math.round(performance.now()-start);
-   return res;
- } catch(e){
-   lastHealthLatency = null;
-   return null;
- }
-}
-
-function computeIngestRate(){
- if(cachedEvents.length<2) return 0;
- const recent = cachedEvents.slice(-50);
- const first = new Date(recent[0].receivedAt).getTime();
- const last = new Date(recent[recent.length-1].receivedAt).getTime();
- const spanMin = Math.max((last-first)/60000, 1/60);
- return Math.round((recent.length/spanMin)*10)/10;
-}
-
-async function renderHealthGrid(stats){
- const health = await pingHealthcheck();
- const grid = document.getElementById('healthGrid');
- const rate = computeIngestRate();
-
- grid.innerHTML = `
-   <div class="health-card ${health ? 'good':'bad'}">
-     <p>Collector Status</p>
-     <h4>${health ? 'UP' : 'UNREACHABLE'}</h4>
-     <div class="sub">/healthcheck</div>
-   </div>
-   <div class="health-card ${lastHealthLatency!==null && lastHealthLatency<200 ? 'good' : 'warn'}">
-     <p>API Latency</p>
-     <h4>${lastHealthLatency!==null ? lastHealthLatency+'ms' : '\u2014'}</h4>
-     <div class="sub">round-trip, this browser</div>
-   </div>
-   <div class="health-card good">
-     <p>Ingest Rate</p>
-     <h4>${rate}/min</h4>
-     <div class="sub">based on last ${Math.min(cachedEvents.length,50)} events</div>
-   </div>
-   <div class="health-card">
-     <p>Events in Buffer</p>
-     <h4>${stats.totalEvents||0}</h4>
-     <div class="sub">in-memory, single instance</div>
-   </div>
- `;
-}
-
-/* ============================================================
    Master refresh loop
    ============================================================ */
 async function refresh(){
@@ -1452,6 +1449,7 @@ async function refresh(){
  if(currentView==='analytics') renderAnalytics();
  if(currentView==='pnf') renderPNFs();
 }
+
 
 refresh();
 setInterval(refresh, 3000);

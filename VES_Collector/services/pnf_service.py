@@ -26,10 +26,6 @@ def _safe_get(data, key, default=""):
 # Extraction
 # ==========================================================
 
-# ==========================================================
-# Extraction
-# ==========================================================
-
 def extract_pnf_fields(event):
     """
     Extract the required fields from a pnfRegistration VES event.
@@ -43,6 +39,31 @@ def extract_pnf_fields(event):
 
     return {
         "receivedTime": _utc_now(),
+
+        "unitType": _safe_get(
+            pnf_fields,
+            "unitType"
+        ),
+
+        "unitFamily": _safe_get(
+            pnf_fields,
+            "unitFamily"
+        ),
+
+        "modelNumber": _safe_get(
+            pnf_fields,
+            "modelNumber"
+        ),
+
+        "serialNumber": _safe_get(
+            pnf_fields,
+            "serialNumber"
+        ),
+
+        "softwareVersion": _safe_get(
+            pnf_fields,
+            "softwareVersion"
+        ),
 
         "oamV4IpAddress": _safe_get(
             pnf_fields,
@@ -76,12 +97,14 @@ def extract_pnf_fields(event):
 
 
 # ==========================================================
-# Storage
+# Storage + automatic forwarding
 # ==========================================================
 
 def process_pnf_registration(event):
     """
     Called whenever a pnfRegistration event is received.
+    Extraction, storage, and forwarding all happen here automatically —
+    no manual trigger is needed for any individual event.
     """
 
     pnf = extract_pnf_fields(event)
@@ -94,12 +117,40 @@ def process_pnf_registration(event):
         pnf["oamV4IpAddress"]
     )
 
-    try:
-        forward_pnf(pnf)
-    except Exception as exc:
-        LOGGER.warning("PNF forwarding failed: %s", exc)
+    _attempt_forward(pnf)
 
     return pnf
+
+
+def _attempt_forward(pnf):
+    """
+    Attempts to forward a single PNF record and records the outcome
+    directly on the record so the UI can reflect real forward status
+    instead of relying on a manual per-event action.
+    """
+
+    if not _forward_config_is_set():
+        pnf["forwarded"] = False
+        pnf["forwardError"] = "Forward destination not configured"
+        return
+
+    try:
+        status_code = forward_pnf(pnf)
+        pnf["forwarded"] = True
+        pnf["forwardError"] = None
+        pnf["forwardStatusCode"] = status_code
+        pnf["forwardedAt"] = _utc_now()
+    except Exception as exc:
+        LOGGER.warning("PNF forwarding failed: %s", exc)
+        pnf["forwarded"] = False
+        pnf["forwardError"] = str(exc)
+
+
+def _forward_config_is_set():
+    host = PNF_FORWARD_CONFIG.get("host")
+    port = PNF_FORWARD_CONFIG.get("port")
+    path = PNF_FORWARD_CONFIG.get("path")
+    return bool(host) and bool(port) and bool(path)
 
 
 def get_all_pnfs():
@@ -183,15 +234,26 @@ def forward_pnf(pnf):
 
 
 def forward_all_pnfs():
+    """
+    Re-attempts forwarding for every stored PNF, e.g. after the
+    forward destination has just been configured. This is a bulk
+    retry/backfill utility, not the primary forwarding path — new
+    events are always forwarded automatically as they arrive.
+    """
 
     success = 0
 
     for pnf in PNF_STORE:
         try:
             forward_pnf(pnf)
+            pnf["forwarded"] = True
+            pnf["forwardError"] = None
+            pnf["forwardedAt"] = _utc_now()
             success += 1
         except Exception as exc:
             LOGGER.warning(exc)
+            pnf["forwarded"] = False
+            pnf["forwardError"] = str(exc)
 
     return {
         "forwarded": success,

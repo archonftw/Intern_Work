@@ -1,4 +1,8 @@
+import os
 from typing import Dict, List, Any
+from dotenv import load_dotenv
+
+load_dotenv()
 
 EVENT_STORE: List[Dict[str, Any]] = []
 
@@ -10,10 +14,10 @@ FILE_STORE: List[Dict[str, Any]] = []
 # PNF Registration Storage
 # ==============================
 
-PNF_STORE = []
+PNF_STORE: List[Dict[str, Any]] = []
 
 PNF_FORWARD_CONFIG = {
-    "host": "127.0.0.1",
-    "port": 9001,
-    "path": "/pnfRegistration"
+    "host": os.getenv("PNF_FORWARD_HOST", "127.0.0.1"),
+    "port": int(os.getenv("PNF_FORWARD_PORT", "9001")),
+    "path": os.getenv("PNF_FORWARD_PATH", "/pnfRegistration"),
 }
