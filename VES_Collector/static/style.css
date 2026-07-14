@@ -215,7 +215,7 @@ button, input, select{ font-family:inherit; }
 
 .stats{
   display:grid;
-  grid-template-columns:repeat(9, 1fr);
+  grid-template-columns:repeat(8, 1fr);
   gap:1px;
   background:var(--border);
   border:1px solid var(--border);
@@ -326,7 +326,7 @@ button, input, select{ font-family:inherit; }
 
 /* ---------------------------------- Devices ------------------------------- */
 
-.device-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:10px; }
+.device-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:10px; }
 
 .device-card{
   background:var(--bg-panel-2); border:1px solid var(--border-soft); border-radius:7px;

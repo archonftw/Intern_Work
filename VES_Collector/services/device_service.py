@@ -5,7 +5,6 @@ from storage.memory import DEVICE_STORE
 
 from config import (
 MAX_EVENTS_PER_DEVICE,
-MAX_MEASUREMENTS_PER_DEVICE,
 MAX_FAULTS_PER_DEVICE,
 MAX_NOTIFICATIONS_PER_DEVICE,
 MAX_STATE_CHANGES_PER_DEVICE,
@@ -91,13 +90,6 @@ def update_device(event: Dict[str, Any]):
         interval = event.get("heartbeatFields", {}).get("heartbeatInterval")
         if interval is not None:
             device["heartbeatIntervalSec"] = interval
-
-    elif domain == "measurement":
-
-        device["measurements"].append(event)
-
-        if len(device["measurements"]) > MAX_MEASUREMENTS_PER_DEVICE:
-            device["measurements"] = device["measurements"][-MAX_MEASUREMENTS_PER_DEVICE:]
 
     elif domain == "fault":
 
