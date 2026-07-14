@@ -13,7 +13,70 @@ VES_URL = "http://localhost:8080/eventListener/v7"
 
 NETWORK_FUNCTIONS = []
 
-for name in ["gNB-01", "gNB-02", "DU-01", "DU-02", "CU-CP-01", "CU-UP-01", "AMF-01", "SMF-01"]:
+for name in [
+    # gNBs
+    "gNB-01",
+    "gNB-02",
+    "gNB-03",
+    "gNB-04",
+
+    # Distributed Units
+    "DU-01",
+    "DU-02",
+    "DU-03",
+    "DU-04",
+
+    # Central Units
+    "CU-CP-01",
+    "CU-CP-02",
+    "CU-UP-01",
+    "CU-UP-02",
+
+    # Radio Units
+    "RU-01",
+    "RU-02",
+    "RU-03",
+    "RU-04",
+
+    # 5G Core
+    "AMF-01",
+    "AMF-02",
+    "SMF-01",
+    "SMF-02",
+    "UPF-01",
+    "UPF-02",
+    "UDM-01",
+    "UDM-02",
+    "AUSF-01",
+    "PCF-01",
+    "NSSF-01",
+    "NRF-01",
+    "NEF-01",
+    "AF-01",
+    "LMF-01",
+
+    # IMS / Voice
+    "IMS-01",
+    "SBC-01",
+    "PCRF-01",
+
+    # Transport
+    "Router-01",
+    "Router-02",
+    "Switch-01",
+    "Switch-02",
+
+    # Edge / MEC
+    "MEC-01",
+    "MEC-02",
+
+    # O-RAN Components
+    "Near-RT-RIC-01",
+    "Non-RT-RIC-01",
+    "O-CU-01",
+    "O-DU-01",
+    "O-RU-01",
+]:
     vendor, model = random.choice(VENDOR_MODELS)
     NETWORK_FUNCTIONS.append({
     "name": name,

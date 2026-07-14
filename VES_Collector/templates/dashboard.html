@@ -23,7 +23,6 @@
       <li><button class="nav-item" data-view="devices"><span class="nav-icon">&#9637;</span><span class="nav-label">Devices</span><span class="nav-badge" id="navDeviceBadge">0</span></button></li>
       <li><button class="nav-item" data-view="pnf"><span class="nav-icon">&#9889;</span><span class="nav-label">PNF Registration</span><span class="nav-badge" id="navPnfBadge">0</span></button></li>
       <li><button class="nav-item" data-view="files"><span class="nav-icon">&#8862;</span><span class="nav-label">Files</span><span class="nav-badge" id="navFilesBadge">0</span></button></li>
-      <li><button class="nav-item" data-view="analytics"><span class="nav-icon">&#8767;</span><span class="nav-label">Analytics</span></button></li>
       <li><button class="nav-item" data-view="explorer"><span class="nav-icon">&#9638;</span><span class="nav-label">Event Explorer</span></button></li>
     </ul>
     <div class="sidebar-foot">Single-instance collector<br>In-memory store (session only)</div>
@@ -223,32 +222,10 @@
 
       </section>
 
-      <section class="view-panel" id="view-analytics">
-
-        <div class="panel">
-          <h3>KPI Trends</h3>
-          <p class="panel-note">Plots the last measurement events reported by the selected device (up to the most recent 20 kept per device).</p>
-
-          <div class="analytics-controls">
-            <select id="analyticsDeviceSelect"></select>
-            <div class="metric-toggle-group" id="metricToggleGroup"></div>
-          </div>
-
-          <div class="trend-chart-wrap"><canvas id="trendChart"></canvas></div>
-        </div>
-
-        <div class="panel">
-          <h3>Latest KPI Snapshot</h3>
-          <div class="kpis" id="latestKpiSnapshot"></div>
-        </div>
-
-      </section>
-
       <section class="view-panel" id="view-explorer">
 
         <div class="panel details">
           <h3>Event Details</h3>
-          <div id="measurementKPIs"></div>
           <pre id="eventDetails">Select an event from the table below...</pre>
         </div>
 
@@ -354,7 +331,7 @@ let cachedEvents = [];
 let cachedDevices = [];
 let cachedFiles = [];
 let cachedPNFs = [];
-let domainChart = null, trendChart = null, modalChart = null;
+let domainChart = null;
 let chartInitialized = false;
 let currentView = 'overview';
 let explorerSort = { key:'receivedAt', dir:'desc' };
@@ -362,9 +339,6 @@ let alarmSort = { key: null, dir: 'asc' };
 let ackedAlarms = new Set(JSON.parse(localStorage.getItem('vesAckedAlarms') || '[]'));
 let toastedEventIds = new Set();
 let firstLoad = true;
-let selectedAnalyticsDevice = null;
-let selectedMetrics = new Set(['CPU_Usage','Memory_Usage']);
-const ALL_METRICS = ['CPU_Usage','Memory_Usage','Connected_UEs','Throughput_Mbps'];
 
 const VIEW_META = {
   overview:  { title:'Overview',        subtitle:'Live network event summary' },
@@ -372,7 +346,6 @@ const VIEW_META = {
   devices:   { title:'Devices',         subtitle:'All reporting network functions' },
   pnf:       { title:'PNF Registration',subtitle:'Registered Physical Network Functions' },
   files:     { title:'Files',           subtitle:'fileReady references from stndDefined events' },
-  analytics: { title:'Analytics',       subtitle:'Per-device KPI trends over time' },
   explorer:  { title:'Event Explorer',  subtitle:'Raw event stream, searchable & sortable' },
 };
 
@@ -388,7 +361,6 @@ function switchView(view){
   document.getElementById('viewSubtitle').textContent = VIEW_META[view].subtitle;
   document.getElementById('sidebar').classList.remove('open');
 
-  if(view==='analytics') renderAnalytics();
   if(view==='pnf') renderPNFs();
 }
 
@@ -564,28 +536,6 @@ function renderEvents(){
 
 function showEvent(event){
  document.getElementById('eventDetails').textContent = JSON.stringify(event.raw,null,2);
- const kpis=document.getElementById('measurementKPIs');
- kpis.innerHTML='';
- const metrics=event.raw?.measurementFields?.measurements;
- const header = event.raw?.commonEventHeader;
-
- if(header){
-    const info=document.createElement('div');
-    info.className='kpi';
-    info.innerHTML=`<strong>Event Name</strong>${header.eventName}`;
-    kpis.appendChild(info);
- }
- if(metrics){
-  const wrap=document.createElement('div');
-  wrap.className='kpis';
-  metrics.forEach(m=>{
-   const d=document.createElement('div');
-   d.className='kpi';
-   d.innerHTML=`<strong>${m.name}</strong>${m.value}`;
-   wrap.appendChild(d);
-  });
-  kpis.appendChild(wrap);
- }
 }
 
 function exportCsv(){
@@ -608,7 +558,6 @@ document.getElementById('deviceFilter').addEventListener('change',renderEvents);
 async function loadDevices(){
  try{ cachedDevices = await safeFetch('/api/devices'); } catch(e){ return; }
  renderDevices();
- populateAnalyticsDeviceSelect();
  updateNavBadges();
 }
 
@@ -711,19 +660,9 @@ async function openDeviceModal(deviceId){
     <div class="modal-stat"><p>Faults</p><h4>${(device.faults||[]).length}</h4></div>
     <div class="modal-stat"><p>Thresholds</p><h4>${(device.thresholds||[]).length}</h4></div>
   </div>
-  <h5>CPU Usage Trend</h5>
-  <div class="mini-chart-wrap"><canvas id="modalTrendCanvas"></canvas></div>
   <h5>Recent Events</h5>
   <div id="modalEvents"></div>
  `;
-
- const series = buildMeasurementSeries(device.measurements||[], 'CPU_Usage');
- if(modalChart) modalChart.destroy();
- modalChart = new Chart(document.getElementById('modalTrendCanvas'), {
-   type:'line',
-   data:{ labels:series.labels, datasets:[{ label:'CPU_Usage', data:series.data, borderColor:'#22d3c7', backgroundColor:'rgba(34,211,199,0.08)', fill:true, tension:0.3, pointRadius:2 }] },
-   options: baseChartOptions(true)
- });
 
  const modalEvents=document.getElementById('modalEvents');
  const recent=[...events].reverse().slice(0,25);
@@ -1105,113 +1044,6 @@ document.getElementById('fileModalBackdrop').addEventListener('click', (e)=>{
  if(e.target.id==='fileModalBackdrop') e.target.classList.remove('open');
 });
 
-/* ============================================================
-   Analytics
-   ============================================================ */
-function populateAnalyticsDeviceSelect(){
- const select=document.getElementById('analyticsDeviceSelect');
- const current = selectedAnalyticsDevice;
- const ids = cachedDevices.map(d=>d.deviceId).sort();
- select.innerHTML = ids.map(id=>`<option value="${id}">${id}</option>`).join('');
- if(ids.length===0) return;
- selectedAnalyticsDevice = ids.includes(current) ? current : ids[0];
- select.value = selectedAnalyticsDevice;
-}
-document.getElementById('analyticsDeviceSelect').addEventListener('change', (e)=>{
- selectedAnalyticsDevice = e.target.value;
- renderAnalytics();
-});
-
-function buildMetricToggles(){
- const group=document.getElementById('metricToggleGroup');
- group.innerHTML = ALL_METRICS.map(m=>
-   `<button class="metric-toggle ${selectedMetrics.has(m)?'active':''}" data-metric="${m}">${m.replace('_',' ')}</button>`
- ).join('');
- group.querySelectorAll('.metric-toggle').forEach(btn=>{
-   btn.addEventListener('click', ()=>{
-     const m=btn.dataset.metric;
-     if(selectedMetrics.has(m)) selectedMetrics.delete(m); else selectedMetrics.add(m);
-     buildMetricToggles();
-     renderAnalytics();
-   });
- });
-}
-buildMetricToggles();
-
-function buildMeasurementSeries(measurementEvents, metricName){
- const points = measurementEvents.map(e=>{
-   const header = e.commonEventHeader||{};
-   const metrics = e.measurementFields?.measurements||[];
-   const found = metrics.find(m=>m.name===metricName);
-   return { t: header.startEpochMicrosec, v: found ? found.value : null };
- }).filter(p=>p.t).sort((a,b)=>a.t-b.t);
-
- return {
-   labels: points.map(p=>new Date(p.t/1000).toLocaleTimeString()),
-   data: points.map(p=>p.v)
- };
-}
-
-function baseChartOptions(compact){
- return {
-   responsive:true, maintainAspectRatio:false,
-   interaction:{ mode:'index', intersect:false },
-   plugins:{ legend:{ display: !compact, position:'bottom', labels:{ color:'#8b96a6', font:{ family:'IBM Plex Sans', size:11 }, boxWidth:10 } } },
-   scales:{
-     x:{ ticks:{ color:'#4e5966', font:{ size:10 }, maxTicksLimit:8 }, grid:{ color:'rgba(255,255,255,0.03)' } },
-     y:{ ticks:{ color:'#4e5966', font:{ size:10 } }, grid:{ color:'rgba(255,255,255,0.03)' } }
-   }
- };
-}
-
-const METRIC_COLORS = {
- CPU_Usage:'#22d3c7', Memory_Usage:'#9d8cff', Connected_UEs:'#ffd23f', Throughput_Mbps:'#ff9f43'
-};
-
-async function renderAnalytics(){
- if(!selectedAnalyticsDevice){
-   if(cachedDevices.length>0){ selectedAnalyticsDevice = cachedDevices[0].deviceId; }
-   else return;
- }
-
- let device;
- try{ device = await safeFetch(`/api/device/${encodeURIComponent(selectedAnalyticsDevice)}`); }
- catch(e){ return; }
-
- const measurements = device.measurements || [];
- const datasets = [...selectedMetrics].map(metric=>{
-   const series = buildMeasurementSeries(measurements, metric);
-   return {
-     label: metric.replace('_',' '),
-     data: series.data,
-     _labels: series.labels,
-     borderColor: METRIC_COLORS[metric],
-     backgroundColor: METRIC_COLORS[metric]+'22',
-     tension:0.3, pointRadius:2, fill:false
-   };
- });
-
- const labels = datasets.length ? datasets[0]._labels : [];
-
- if(trendChart) trendChart.destroy();
- trendChart = new Chart(document.getElementById('trendChart'), {
-   type:'line',
-   data:{ labels, datasets },
-   options: baseChartOptions(false)
- });
-
- // latest KPI snapshot
- const snapshot = document.getElementById('latestKpiSnapshot');
- const last = measurements[measurements.length-1];
- const lastMetrics = last?.measurementFields?.measurements || [];
- if(lastMetrics.length===0){
-   snapshot.innerHTML = '<div class="empty-state">No measurement events yet for this device.</div>';
- } else {
-   snapshot.innerHTML = lastMetrics.map(m=>`<div class="kpi"><strong>${m.name}</strong>${m.value}</div>`).join('');
- }
-}
-
-
 function computeAlarmGroups(){
  const groups = {};
 
@@ -1444,7 +1276,6 @@ async function refresh(){
  await loadPNFs();
  await loadFiles();
  renderAlarms();
- if(currentView==='analytics') renderAnalytics();
  if(currentView==='pnf') renderPNFs();
 }
 
