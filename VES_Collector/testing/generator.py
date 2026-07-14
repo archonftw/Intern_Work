@@ -5,23 +5,11 @@ import time
 import os
 import tempfile
 from datetime import datetime,timedelta,UTC
+from utils import VENDOR_MODELS
 
 VES_URL = "http://localhost:8080/eventListener/v7"
 
-# ────────────────────────────────────────────────
-# Simulated device fleet
-# Each NF has a persistent identity so vendor/model/serial stay
-# consistent across every event it sends (matches real PNF behavior,
-# and lets the dashboard's Devices panel show meaningful info).
-# ────────────────────────────────────────────────
 
-VENDOR_MODELS = [
-    ("Ericsson", "RU-4408"),
-    ("Nokia", "AirScale-BTS"),
-    ("Huawei", "BBU-5900"),
-    ("Samsung", "vRAN-CU"),
-    ("Mavenir", "OpenRAN-DU"),
-]
 
 NETWORK_FUNCTIONS = []
 
@@ -36,18 +24,8 @@ for name in ["gNB-01", "gNB-02", "DU-01", "DU-02", "CU-CP-01", "CU-UP-01", "AMF-
     "ip": f"192.168.1.{random.randint(2,254)}"
 })
 
-# ────────────────────────────────────────────────
-# Local file storage for simulated fileReady payloads.
-# Real NFs would put these on an SFTP/S3 endpoint; for local testing
-# against the collector's file_ready_service, we write real files to
-# disk and point fileLocation at them via file:// so the dashboard's
-# Preview button can actually fetch and display content, not just
-# metadata.
-# ────────────────────────────────────────────────
-
 PM_FILE_DIR = os.path.join(tempfile.gettempdir(), "ves_pm_files")
 os.makedirs(PM_FILE_DIR, exist_ok=True)
-
 
 def get_device(name=None):
     """Return a device record by name, or a random one."""
@@ -120,41 +98,6 @@ def fault_event(device=None):
                 ]),
                 "specificProblem": "Auto Generated Fault",
                 "faultFieldsVersion": "4.0"
-            }
-        }
-    }
-
-
-def measurement_event(device=None):
-    device = device or get_device()
-
-    return {
-        "event": {
-            "commonEventHeader": common_header(
-                "measurement",
-                "KPI",
-                device["name"]
-            ),
-            "measurementFields": {
-                "measurementInterval": 60,
-                "measurements": [
-                    {
-                        "name": "CPU_Usage",
-                        "value": round(random.uniform(10, 99), 2)
-                    },
-                    {
-                        "name": "Memory_Usage",
-                        "value": round(random.uniform(20, 95), 2)
-                    },
-                    {
-                        "name": "Connected_UEs",
-                        "value": random.randint(50, 1000)
-                    },
-                    {
-                        "name": "Throughput_Mbps",
-                        "value": round(random.uniform(100, 3000), 2)
-                    }
-                ]
             }
         }
     }
@@ -440,7 +383,6 @@ def stnd_threshold_clear_event(device=None):
 EVENT_GENERATORS = [
     heartbeat_event,
     fault_event,
-    measurement_event,
     notification_event,
     state_change_event,
     threshold_event,

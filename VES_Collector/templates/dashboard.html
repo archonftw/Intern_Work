@@ -47,7 +47,6 @@
         <div class="stats">
           <div class="card"><p>Total Events</p><h2 id="totalEvents">0</h2></div>
           <div class="card"><p>Fault</p><h2 id="faultEvents">0</h2></div>
-          <div class="card"><p>Measurement</p><h2 id="measurementEvents">0</h2></div>
           <div class="card"><p>Heartbeat</p><h2 id="heartbeatEvents">0</h2></div>
           <div class="card"><p>Notification</p><h2 id="notificationEvents">0</h2></div>
           <div class="card"><p>State Change</p><h2 id="stateChangeEvents">0</h2></div>
@@ -260,7 +259,6 @@
             <select id="domainFilter">
               <option value="">All Domains</option>
               <option value="fault">fault</option>
-              <option value="measurement">measurement</option>
               <option value="heartbeat">heartbeat</option>
               <option value="notification">notification</option>
               <option value="stateChange">stateChange</option>
@@ -435,7 +433,7 @@ async function loadStats(){
  let stats;
  try{ stats = await safeFetch('/api/stats'); } catch(e){ return; }
 
- ['totalEvents','faultEvents','measurementEvents','heartbeatEvents','notificationEvents',
+ ['totalEvents','faultEvents','heartbeatEvents','notificationEvents',
   'stateChangeEvents','thresholdEvents','pnfRegistrationEvents','stndDefinedEvents'
  ].forEach(k=>{
     const el=document.getElementById(k);
@@ -443,7 +441,7 @@ async function loadStats(){
  });
 
  const data=[
-   stats.faultEvents||0, stats.measurementEvents||0, stats.heartbeatEvents||0,
+   stats.faultEvents||0, stats.heartbeatEvents||0,
    stats.notificationEvents||0, stats.stateChangeEvents||0, stats.thresholdEvents||0,
    stats.pnfRegistrationEvents||0, stats.stndDefinedEvents||0
  ];
@@ -462,7 +460,7 @@ function createDomainChart(data){
  domainChart=new Chart(ctx,{
   type:'doughnut',
   data:{
-   labels:['Fault','Measurement','Heartbeat','Notification','State Change','Threshold','PNF Registration','STND'],
+   labels:['Fault','Heartbeat','Notification','State Change','Threshold','PNF Registration','STND'],
    datasets:[{
     data:data,
     backgroundColor:['#ff4d5e','#22d3c7','#34d399','#9d8cff','#ffd23f','#ff9f43','#6cc3ff','#f0a8ff'],
