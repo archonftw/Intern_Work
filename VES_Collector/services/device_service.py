@@ -49,8 +49,6 @@ def get_or_create_device(device_id: str):
 
             "faults": [],
 
-            "measurements": [],
-
             "notifications": [],
 
             "stateChanges": [],

@@ -15,7 +15,6 @@ COMMON_HEADER_SCHEMA = {
     "additionalProperties": True
 }
 
-
 HEARTBEAT_SCHEMA = {
     "type": "object",
     "required": [
@@ -27,7 +26,6 @@ HEARTBEAT_SCHEMA = {
         }
     }
 }
-
 
 FAULT_SCHEMA = {
     "type": "object",
@@ -62,6 +60,7 @@ FAULT_SCHEMA = {
     },
     "additionalProperties": True
 }
+
 FILE_READY_SCHEMA = {
     "type": "object",
     "required": [
@@ -181,35 +180,6 @@ FILE_READY_SCHEMA = {
         },
         "notificationType": {
             "type": "string"
-        }
-    }
-}
-MEASUREMENT_SCHEMA = {
-    "type": "object",
-    "required": [
-        "measurementInterval",
-        "measurements"
-    ],
-    "properties": {
-        "measurementInterval": {
-            "type": "number"
-        },
-        "measurements": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-                "type": "object",
-                "required": [
-                    "name",
-                    "value"
-                ],
-                "properties": {
-                    "name": {
-                        "type": "string"
-                    },
-                    "value": {}
-                }
-            }
         }
     }
 }
