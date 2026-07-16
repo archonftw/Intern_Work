@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VesEventAlarmSchema",
+  "type": "object",
+  "required": ["event"],
+  "properties": {
+    "event": {
+      "type": "object",
+      "required": ["commonEventHeader", "faultFields"],
+      "properties": {
+        "commonEventHeader": {
+          "type": "object",
+          "required": [
+            "domain",
+            "eventId",
+            "eventName",
+            "eventType",
+            "sequence",
+            "priority",
+            "reportingEntityName",
+            "sourceName",
+            "startEpochMicrosec",
+            "lastEpochMicrosec",
+            "nfNamingCode",
+            "nfVendorName",
+            "timeZoneOffset",
+            "version",
+            "vesEventListenerVersion"
+          ],
+          "properties": {
+            "domain": { "type": "string" },
+            "eventId": { "type": "string" },
+            "eventName": { "type": "string" },
+            "eventType": { "type": "string" },
+            "sequence": { "type": "integer" },
+            "priority": { "type": "string", "enum": ["High", "Medium", "Low", "Critical"] },
+            "reportingEntityId": { "type": "string" },
+            "reportingEntityName": { "type": "string" },
+            "sourceId": { "type": "string" },
+            "sourceName": { "type": "string" },
+            "startEpochMicrosec": { "type": "string" },
+            "lastEpochMicrosec": { "type": "string" },
+            "nfNamingCode": { "type": "string" },
+            "nfVendorName": { "type": "string" },
+            "timeZoneOffset": { "type": "string" },
+            "version": { "type": "string" },
+            "vesEventListenerVersion": { "type": "string" }
+          }
+        },
+        "faultFields": {
+          "type": "object",
+          "required": [
+            "faultFieldsVersion",
+            "alarmCondition",
+            "alarmInterfaceA",
+            "eventSourceType",
+            "specificProblem",
+            "eventSeverity",
+            "vfStatus",
+            "alarmAdditionalInformation"
+          ],
+          "properties": {
+            "faultFieldsVersion": { "type": "string" },
+            "alarmCondition": { "type": "string" },
+            "alarmInterfaceA": { "type": "string" },
+            "eventSourceType": { "type": "string" },
+            "specificProblem": { "type": "string" },
+            "eventSeverity": { "type": "string" },
+            "vfStatus": { "type": "string", "enum": ["Active", "Cleared"] },
+            "alarmAdditionalInformation": {
+              "type": "object",
+              "required": ["eventTime", "equipType", "vendor", "model"],
+              "properties": {
+                "eventTime": { "type": "string" },
+                "equipType": { "type": "string" },
+                "vendor": { "type": "string" },
+                "model": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

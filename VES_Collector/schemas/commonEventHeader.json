@@ -1,0 +1,16 @@
+{
+    "type": "object",
+    "required": ["domain", "eventId", "eventName"],
+    "properties": {
+        "domain": {"type": "string"},
+        "eventId": {"type": "string"},
+        "eventName": {"type": "string"},
+        "sourceName": {"type": "string"},
+        "reportingEntityName": {"type": "string"},
+        "priority": {"type": "string"},
+        "vesEventListenerVersion": {"type": "string"},
+        "startEpochMicrosec": {"type": "number"},
+        "lastEpochMicrosec": {"type": "number"}
+    },
+    "additionalProperties": "True"
+}

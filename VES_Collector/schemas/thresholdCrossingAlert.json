@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VesEventThresholdCrossingAlertSchema",
+  "type": "object",
+  "required": ["event"],
+  "properties": {
+    "event": {
+      "type": "object",
+      "required": ["commonEventHeader", "thresholdCrossingAlertFields"],
+      "properties": {
+        "commonEventHeader": {
+          "type": "object",
+          "required": [
+            "domain",
+            "eventId",
+            "eventName",
+            "eventType",
+            "sequence",
+            "priority",
+            "reportingEntityName",
+            "sourceName",
+            "startEpochMicrosec",
+            "lastEpochMicrosec",
+            "nfNamingCode",
+            "nfVendorName",
+            "timeZoneOffset",
+            "version",
+            "vesEventListenerVersion"
+          ],
+          "properties": {
+            "domain": { "type": "string" },
+            "eventId": { "type": "string" },
+            "eventName": { "type": "string" },
+            "eventType": { "type": "string" },
+            "sequence": { "type": "integer" },
+            "priority": { "type": "string", "enum": ["High", "Medium", "Low", "Critical"] },
+            "reportingEntityId": { "type": "string" },
+            "reportingEntityName": { "type": "string" },
+            "sourceId": { "type": "string" },
+            "sourceName": { "type": "string" },
+            "startEpochMicrosec": { "type": "string" },
+            "lastEpochMicrosec": { "type": "string" },
+            "nfNamingCode": { "type": "string" },
+            "nfVendorName": { "type": "string" },
+            "timeZoneOffset": { "type": "string" },
+            "version": { "type": "string" },
+            "vesEventListenerVersion": { "type": "string" }
+          }
+        },
+        "thresholdCrossingAlertFields": {
+          "type": "object",
+          "required": [
+            "thresholdCrossingFieldsVersion",
+            "additionalParameters",
+            "alertAction",
+            "alertDescription",
+            "alertType",
+            "alertValue",
+            "associatedAlertIdList",
+            "collectionTimestamp",
+            "dataCollector",
+            "elementType",
+            "eventSeverity",
+            "eventStartTimestamp",
+            "interfaceName",
+            "networkService",
+            "possibleRootCause",
+            "additionalFields"
+          ],
+          "properties": {
+            "thresholdCrossingFieldsVersion": { "type": "string" },
+            "additionalParameters": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["criticality", "hashMap", "thresholdCrossed"],
+                "properties": {
+                  "criticality": { "type": "string" },
+                  "hashMap": {
+                    "type": "object",
+                    "additionalProperties": { "type": "string" }
+                  },
+                  "thresholdCrossed": { "type": "string" }
+                }
+              }
+            },
+            "alertAction": { "type": "string" },
+            "alertDescription": { "type": "string" },
+            "alertType": { "type": "string" },
+            "alertValue": { "type": "string" },
+            "associatedAlertIdList": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "collectionTimestamp": { "type": "string" },
+            "dataCollector": { "type": "string" },
+            "elementType": { "type": "string" },
+            "eventSeverity": { "type": "string" },
+            "eventStartTimestamp": { "type": "string" },
+            "interfaceName": { "type": "string" },
+            "networkService": { "type": "string" },
+            "possibleRootCause": { "type": "string" },
+            "additionalFields": {
+              "type": "object",
+              "required": ["eventTime", "equipType", "vendor", "model"],
+              "properties": {
+                "eventTime": { "type": "string" },
+                "equipType": { "type": "string" },
+                "vendor": { "type": "string" },
+                "model": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

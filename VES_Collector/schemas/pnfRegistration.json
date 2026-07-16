@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VesEventPnfRegistrationSchema",
+  "type": "object",
+  "required": ["event"],
+  "properties": {
+    "event": {
+      "type": "object",
+      "required": ["commonEventHeader", "pnfRegistrationFields"],
+      "properties": {
+        "commonEventHeader": {
+          "type": "object",
+          "required": [
+            "domain",
+            "eventId",
+            "eventName",
+            "eventType",
+            "sequence",
+            "priority",
+            "reportingEntityName",
+            "sourceName",
+            "startEpochMicrosec",
+            "lastEpochMicrosec",
+            "nfNamingCode",
+            "nfVendorName",
+            "timeZoneOffset",
+            "version",
+            "vesEventListenerVersion"
+          ],
+          "properties": {
+            "domain": { "type": "string" },
+            "eventId": { "type": "string" },
+            "eventName": { "type": "string" },
+            "eventType": { "type": "string" },
+            "sequence": { "type": "integer" },
+            "priority": { "type": "string", "enum": ["High", "Medium", "Low", "Critical"] },
+            "reportingEntityId": { "type": "string" },
+            "reportingEntityName": { "type": "string" },
+            "sourceId": { "type": "string" },
+            "sourceName": { "type": "string" },
+            "startEpochMicrosec": { "type": "string" },
+            "lastEpochMicrosec": { "type": "string" },
+            "nfNamingCode": { "type": "string" },
+            "nfVendorName": { "type": "string" },
+            "timeZoneOffset": { "type": "string" },
+            "version": { "type": "string" },
+            "vesEventListenerVersion": { "type": "string" }
+          }
+        },
+        "pnfRegistrationFields": {
+          "type": "object",
+          "required": [
+            "pnfRegistrationFieldsVersion",
+            "lastServiceDate",
+            "macAddress",
+            "manufactureDate",
+            "modelNumber",
+            "oamV4IpAddress",
+            "oamV6IpAddress",
+            "serialNumber",
+            "softwareVersion",
+            "unitFamily",
+            "unitType",
+            "vendorName",
+            "additionalFields"
+          ],
+          "properties": {
+            "pnfRegistrationFieldsVersion": { "type": "string" },
+            "lastServiceDate": { "type": "string", "format": "date" },
+            "macAddress": { "type": "string" },
+            "manufactureDate": { "type": "string", "format": "date" },
+            "modelNumber": { "type": "string" },
+            "oamV4IpAddress": { "type": "string" },
+            "oamV6IpAddress": { "type": "string" },
+            "serialNumber": { "type": "string" },
+            "softwareVersion": { "type": "string" },
+            "unitFamily": { "type": "string" },
+            "unitType": { "type": "string" },
+            "vendorName": { "type": "string" },
+            "additionalFields": {
+              "type": "object",
+              "required": [
+                "oamPort",
+                "protocol",
+                "username",
+                "password",
+                "reconnectOnChangedSchema",
+                "sleep-factor",
+                "tcpOnly",
+                "connectionTimeout",
+                "maxConnectionAttempts",
+                "betweenAttemptsTimeout",
+                "keepaliveDelay"
+              ],
+              "properties": {
+                "oamPort": { "type": "string" },
+                "protocol": { "type": "string" },
+                "username": { "type": "string" },
+                "password": { "type": "string" },
+                "reconnectOnChangedSchema": { "type": "string" },
+                "sleep-factor": { "type": "string" },
+                "tcpOnly": { "type": "string" },
+                "connectionTimeout": { "type": "string" },
+                "maxConnectionAttempts": { "type": "string" },
+                "betweenAttemptsTimeout": { "type": "string" },
+                "keepaliveDelay": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

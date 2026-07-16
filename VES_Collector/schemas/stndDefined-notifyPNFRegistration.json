@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VesEventStndDefinedPnfRegistrationSchema",
+  "type": "object",
+  "required": ["event"],
+  "properties": {
+    "event": {
+      "type": "object",
+      "required": ["commonEventHeader", "stndDefinedFields"],
+      "properties": {
+        "commonEventHeader": {
+          "type": "object",
+          "required": [
+            "domain",
+            "eventId",
+            "eventName",
+            "eventType",
+            "sequence",
+            "priority",
+            "reportingEntityName",
+            "sourceName",
+            "startEpochMicrosec",
+            "lastEpochMicrosec",
+            "nfNamingCode",
+            "nfVendorName",
+            "timeZoneOffset",
+            "version",
+            "stndDefinedNamespace",
+            "vesEventListenerVersion"
+          ],
+          "properties": {
+            "domain": { "type": "string" },
+            "eventId": { "type": "string" },
+            "eventName": { "type": "string" },
+            "eventType": { "type": "string" },
+            "sequence": { "type": "integer" },
+            "priority": { "type": "string", "enum": ["High", "Medium", "Low", "Critical"] },
+            "reportingEntityId": { "type": "string" },
+            "reportingEntityName": { "type": "string" },
+            "sourceId": { "type": "string" },
+            "sourceName": { "type": "string" },
+            "startEpochMicrosec": { "type": "string" },
+            "lastEpochMicrosec": { "type": "string" },
+            "nfNamingCode": { "type": "string" },
+            "nfVendorName": { "type": "string" },
+            "timeZoneOffset": { "type": "string" },
+            "version": { "type": "string" },
+            "stndDefinedNamespace": { "type": "string" },
+            "vesEventListenerVersion": { "type": "string" }
+          }
+        },
+        "stndDefinedFields": {
+          "type": "object",
+          "required": [
+            "schemaReference",
+            "data",
+            "stndDefinedFieldsVersion"
+          ],
+          "properties": {
+            "schemaReference": { "type": "string", "format": "uri" },
+            "stndDefinedFieldsVersion": { "type": "string" },
+            "data": {
+              "type": "object",
+              "required": [
+                "object-class",
+                "object-instance",
+                "notification-identifier",
+                "notification-type",
+                "event-time",
+                "system",
+                "o1-specification-version",
+                "vendor-pen",
+                "vendor-name",
+                "oam-host",
+                "oam-port",
+                "unit-family",
+                "unit-type",
+                "restart-reason",
+                "serial-number",
+                "macAddress",
+                "modelNumber",
+                "softwareVersion",
+                "manufactureDate",
+                "lastServiceDate",
+                "transport-protocol",
+                "username",
+                "password",
+                "reconnect-on-changed-schema",
+                "sleep-factor",
+                "tcpOnly",
+                "connection-timeout",
+                "max-connection-attempts",
+                "between-attempts-timeout",
+                "keepalive-delay"
+              ],
+              "properties": {
+                "object-class": { "type": "string" },
+                "object-instance": { "type": "string" },
+                "notification-identifier": { "type": "string" },
+                "notification-type": { "type": "string" },
+                "event-time": { "type": "string" },
+                "system": { "type": "string" },
+                "o1-specification-version": { "type": "string" },
+                "vendor-pen": { "type": "string" },
+                "vendor-name": { "type": "string" },
+                "oam-host": { "type": "string" },
+                "oam-port": { "type": "integer" },
+                "unit-family": { "type": "string" },
+                "unit-type": { "type": "string" },
+                "restart-reason": { "type": "string" },
+                "serial-number": { "type": "string" },
+                "macAddress": { "type": "string" },
+                "modelNumber": { "type": "string" },
+                "softwareVersion": { "type": "string" },
+                "manufactureDate": { "type": "string", "format": "date" },
+                "lastServiceDate": { "type": "string", "format": "date" },
+                "transport-protocol": { "type": "string" },
+                "username": { "type": "string" },
+                "password": { "type": "string" },
+                "reconnect-on-changed-schema": { "type": "string" },
+                "sleep-factor": { "type": "string" },
+                "tcpOnly": { "type": "string" },
+                "connection-timeout": { "type": "string" },
+                "max-connection-attempts": { "type": "string" },
+                "between-attempts-timeout": { "type": "string" },
+                "keepalive-delay": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

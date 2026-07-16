@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VesEventStndDefinedFaultSupervisionSchema",
+  "type": "object",
+  "required": ["event"],
+  "properties": {
+    "event": {
+      "type": "object",
+      "required": ["commonEventHeader", "stndDefinedFields"],
+      "properties": {
+        "commonEventHeader": {
+          "type": "object",
+          "required": [
+            "domain",
+            "eventId",
+            "eventName",
+            "eventType",
+            "sequence",
+            "priority",
+            "reportingEntityName",
+            "sourceName",
+            "startEpochMicrosec",
+            "lastEpochMicrosec",
+            "nfNamingCode",
+            "nfVendorName",
+            "timeZoneOffset",
+            "version",
+            "stndDefinedNamespace",
+            "vesEventListenerVersion"
+          ],
+          "properties": {
+            "domain": { "type": "string" },
+            "eventId": { "type": "string" },
+            "eventName": { "type": "string" },
+            "eventType": { "type": "string" },
+            "sequence": { "type": "integer" },
+            "priority": { "type": "string", "enum": ["High", "Medium", "Low", "Critical"] },
+            "reportingEntityId": { "type": "string" },
+            "reportingEntityName": { "type": "string" },
+            "sourceId": { "type": "string" },
+            "sourceName": { "type": "string" },
+            "startEpochMicrosec": { "type": "string" },
+            "lastEpochMicrosec": { "type": "string" },
+            "nfNamingCode": { "type": "string" },
+            "nfVendorName": { "type": "string" },
+            "timeZoneOffset": { "type": "string" },
+            "version": { "type": "string" },
+            "stndDefinedNamespace": { "type": "string" },
+            "vesEventListenerVersion": { "type": "string" }
+          }
+        },
+        "stndDefinedFields": {
+          "type": "object",
+          "required": [
+            "schemaReference",
+            "data",
+            "stndDefinedFieldsVersion"
+          ],
+          "properties": {
+            "schemaReference": { "type": "string", "format": "uri" },
+            "stndDefinedFieldsVersion": { "type": "string" },
+            "data": {
+              "type": "object",
+              "required": [
+                "href",
+                "notificationId",
+                "notificationType",
+                "eventTime",
+                "systemDN",
+                "alarmId",
+                "alarmType",
+                "probableCause",
+                "perceivedSeverity",
+                "clearUserId",
+                "clearSystemId"
+              ],
+              "properties": {
+                "href": { "type": "string" },
+                "notificationId": { "type": "integer" },
+                "notificationType": { "type": "string" },
+                "eventTime": { "type": "string" },
+                "systemDN": { "type": "string" },
+                "alarmId": { "type": "string" },
+                "alarmType": { "type": "string" },
+                "probableCause": { "type": "string" },
+                "perceivedSeverity": { "type": "string" },
+                "clearUserId": { "type": "string" },
+                "clearSystemId": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

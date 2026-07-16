@@ -23,6 +23,7 @@
       <li><button class="nav-item" data-view="devices"><span class="nav-icon">&#9637;</span><span class="nav-label">Devices</span><span class="nav-badge" id="navDeviceBadge">0</span></button></li>
       <li><button class="nav-item" data-view="pnf"><span class="nav-icon">&#9889;</span><span class="nav-label">PNF Registration</span><span class="nav-badge" id="navPnfBadge">0</span></button></li>
       <li><button class="nav-item" data-view="files"><span class="nav-icon">&#8862;</span><span class="nav-label">Files</span><span class="nav-badge" id="navFilesBadge">0</span></button></li>
+      <li><button class="nav-item" data-view="stnd"><span class="nav-icon">&#9711;</span><span class="nav-label">STND Defined</span><span class="nav-badge" id="navStndBadge">0</span></button></li>
       <li><button class="nav-item" data-view="explorer"><span class="nav-icon">&#9638;</span><span class="nav-label">Event Explorer</span></button></li>
     </ul>
     <div class="sidebar-foot">Single-instance collector<br>In-memory store (session only)</div>
@@ -222,6 +223,28 @@
 
       </section>
 
+      <section class="view-panel" id="view-stnd">
+
+        <div class="panel">
+          <h3>STND Defined Events <span class="count-pill" id="stndCountPill">0 events</span></h3>
+          <p class="panel-note">Events under the stndDefined domain, grouped by resolved notification type (new alarm, cleared alarm, file-ready, PNF registration). Grouping mirrors the same detection logic the backend uses to dispatch these events.</p>
+
+          <div class="controls">
+            <input id="stndSearch" placeholder="Search device or event name">
+            <select id="stndTypeFilter">
+              <option value="">All Types</option>
+              <option value="notifyNewAlarm">New Alarm</option>
+              <option value="notifyClearedAlarm">Cleared Alarm</option>
+              <option value="notifyFileReady">File Ready</option>
+              <option value="notifyPNFRegistration">PNF Registration</option>
+            </select>
+          </div>
+
+          <div id="stndGroups"></div>
+        </div>
+
+      </section>
+
       <section class="view-panel" id="view-explorer">
 
         <div class="panel details">
@@ -295,6 +318,16 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="alarmModalBackdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="alarmModalTitle">ALARM</h3>
+      <button class="modal-close" id="alarmModalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="alarmModalBody"></div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="pnfModalBackdrop">
   <div class="modal">
     <div class="modal-head">
@@ -346,6 +379,7 @@ const VIEW_META = {
   devices:   { title:'Devices',         subtitle:'All reporting network functions' },
   pnf:       { title:'PNF Registration',subtitle:'Registered Physical Network Functions' },
   files:     { title:'Files',           subtitle:'fileReady references from stndDefined events' },
+  stnd:      { title:'STND Defined',    subtitle:'Standard-defined notifications grouped by type' },
   explorer:  { title:'Event Explorer',  subtitle:'Raw event stream, searchable & sortable' },
 };
 
@@ -362,6 +396,7 @@ function switchView(view){
   document.getElementById('sidebar').classList.remove('open');
 
   if(view==='pnf') renderPNFs();
+  if(view==='stnd') renderStnd();
 }
 
 document.querySelectorAll('.nav-item').forEach(btn=>{
@@ -1044,6 +1079,94 @@ document.getElementById('fileModalBackdrop').addEventListener('click', (e)=>{
  if(e.target.id==='fileModalBackdrop') e.target.classList.remove('open');
 });
 
+/* ============================================================
+   STND Defined Events (grouped)
+   ============================================================ */
+const STND_TYPE_LABELS = {
+  notifyNewAlarm: 'New Alarm',
+  notifyClearedAlarm: 'Cleared Alarm',
+  notifyFileReady: 'File Ready',
+  notifyPNFRegistration: 'PNF Registration',
+  unknown: 'Unknown'
+};
+
+// Mirrors process_stnd()'s dispatch order server-side, so grouping here
+// matches how the backend actually classified/handled the event.
+function resolveStndType(e){
+  const eventName = (e.eventName || '').toLowerCase();
+  const data = e.raw?.stndDefinedFields?.data || {};
+
+  if(eventName.includes('cleared')) return 'notifyClearedAlarm';
+  if(Array.isArray(data.fileInfoList) || eventName.includes('file-ready') || eventName.includes('fileready')) return 'notifyFileReady';
+  if(eventName.includes('notifypnfregistration')) return 'notifyPNFRegistration';
+  if(eventName.includes('thresholdcrossingalert')) return 'notifyNewAlarm';
+  return 'unknown';
+}
+
+function renderStnd(){
+  const search = (document.getElementById('stndSearch').value || '').toLowerCase();
+  const typeFilter = document.getElementById('stndTypeFilter').value;
+
+  const stndEvents = cachedEvents.filter(e => e.domain === 'stndDefined');
+  document.getElementById('stndCountPill').textContent = `${stndEvents.length} events`;
+
+  const filtered = stndEvents.filter(e => {
+    const type = resolveStndType(e);
+    if(typeFilter && type !== typeFilter) return false;
+    const text = ((e.sourceName||'') + ' ' + (e.eventName||'')).toLowerCase();
+    if(search && !text.includes(search)) return false;
+    return true;
+  });
+
+  const groups = {};
+  filtered.forEach(e => {
+    const type = resolveStndType(e);
+    (groups[type] = groups[type] || []).push(e);
+  });
+
+  const typeOrder = ['notifyNewAlarm','notifyClearedAlarm','notifyFileReady','notifyPNFRegistration','unknown'];
+  const container = document.getElementById('stndGroups');
+
+  const sections = typeOrder.filter(t => groups[t]?.length).map(type => {
+    const items = groups[type].sort((a,b) => new Date(b.receivedAt||0) - new Date(a.receivedAt||0));
+    const rows = items.map(e => `
+      <tr data-id="${e.collectorId}">
+        <td>${e.receivedAt||'-'}</td>
+        <td>${e.sourceName||'-'}</td>
+        <td>${e.eventName||'-'}</td>
+        <td>${e.priority||'-'}</td>
+      </tr>`).join('');
+
+    return `
+      <div class="panel">
+        <h3><span class="badge stndDefined">${STND_TYPE_LABELS[type]}</span> <span class="count-pill">${items.length}</span></h3>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Time</th><th>Source</th><th>Event Name</th><th>Priority</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  });
+
+  container.innerHTML = sections.length
+    ? sections.join('')
+    : '<div class="panel"><div class="empty-state">No stndDefined events match the current filters.</div></div>';
+
+  container.querySelectorAll('tr[data-id]').forEach(row => {
+    row.addEventListener('click', () => {
+      const ev = filtered.find(e => e.collectorId === row.dataset.id);
+      if(ev){
+        switchView('explorer');
+        showEvent(ev);
+      }
+    });
+  });
+}
+
+document.getElementById('stndSearch').addEventListener('input', renderStnd);
+document.getElementById('stndTypeFilter').addEventListener('change', renderStnd);
+
 function computeAlarmGroups(){
  const groups = {};
 
@@ -1175,7 +1298,7 @@ function renderAlarms(){
    table.innerHTML = filtered.map(g=>{
      const acked = ackedAlarms.has(g.key);
      return `
-     <tr class="alarm-row ${g.severity} ${acked?'acked':''}">
+     <tr class="alarm-row ${g.severity} ${acked?'acked':''}" data-alarm-key="${g.key}" style="cursor:pointer;">
        <td><span class="sev-chip ${g.severity}">${g.severity}</span></td>
        <td>${g.device}</td>
        <td>${g.condition}</td>
@@ -1194,6 +1317,15 @@ function renderAlarms(){
        if(ackedAlarms.has(key)) ackedAlarms.delete(key); else ackedAlarms.add(key);
        saveAcks();
        renderAlarms();
+     });
+   });
+
+   // Click anywhere else on the row opens the full alarm detail modal.
+   // The Ack button's own listener calls stopPropagation() above, so
+   // clicking Ack won't also trigger the modal.
+   table.querySelectorAll('tr[data-alarm-key]').forEach(row=>{
+     row.addEventListener('click', ()=>{
+       openAlarmModal(row.dataset.alarmKey, groups);
      });
    });
  }
@@ -1221,6 +1353,97 @@ document.getElementById('clearAcksBtn').addEventListener('click', ()=>{
  renderAlarms();
 });
 
+// Finds every raw event that contributed to this alarm group, using the
+// same domain-specific matching logic computeAlarmGroups() used to build
+// the group in the first place, so the modal's event list agrees with the
+// group's own occurrence count.
+function findAlarmEvents(group){
+  return cachedEvents.filter(e=>{
+    if(e.sourceName !== group.device) return false;
+    const raw = e.raw || {};
+
+    if(group.domain==='fault' && e.domain==='fault'){
+      const ff = raw.faultFields || {};
+      return (ff.alarmCondition || 'Unknown Condition') === group.condition;
+    }
+    if(group.domain==='stndDefined' && e.domain==='stndDefined' && raw.stndDefinedFields?.measurementName){
+      return raw.stndDefinedFields.measurementName === group.condition;
+    }
+    if(group.domain==='thresholdCrossingAlert' && e.domain==='thresholdCrossingAlert'){
+      const tf = raw.thresholdCrossingAlertFields || {};
+      return (tf.indicatorName || 'Threshold Breach') === group.condition;
+    }
+    return false;
+  }).sort((a,b)=> new Date(b.receivedAt||0) - new Date(a.receivedAt||0));
+}
+
+function openAlarmModal(key, groups){
+  const group = (groups || computeAlarmGroups()).find(g=>g.key===key);
+  const backdrop = document.getElementById('alarmModalBackdrop');
+  const body = document.getElementById('alarmModalBody');
+
+  if(!group){
+    document.getElementById('alarmModalTitle').textContent = 'Alarm';
+    body.innerHTML = '<div class="empty-state">This alarm is no longer present in the current event window.</div>';
+    backdrop.classList.add('open');
+    return;
+  }
+
+  document.getElementById('alarmModalTitle').textContent = `${group.device} \u2014 ${group.condition}`;
+
+  const acked = ackedAlarms.has(group.key);
+  const events = findAlarmEvents(group);
+  const latest = events[0];
+
+  const metaGrid = `
+    <div class="modal-grid">
+      <div class="modal-stat"><p>Severity</p><h4><span class="sev-chip ${group.severity}">${group.severity}</span></h4></div>
+      <div class="modal-stat"><p>Domain</p><h4><span class="badge ${group.domain}">${group.domain}</span></h4></div>
+      <div class="modal-stat"><p>Device</p><h4>${group.device}</h4></div>
+      <div class="modal-stat"><p>Occurrences</p><h4>${group.occurrences}</h4></div>
+      <div class="modal-stat"><p>First Seen</p><h4>${group.firstSeen||'&mdash;'}</h4></div>
+      <div class="modal-stat"><p>Last Seen</p><h4>${group.lastSeen||'&mdash;'}</h4></div>
+      <div class="modal-stat"><p>Acknowledged</p><h4>${acked ? 'Yes' : 'No'}</h4></div>
+    </div>`;
+
+  const latestRawBlock = latest
+    ? `<h5>Latest Raw Event</h5><pre>${JSON.stringify(latest.raw, null, 2).replace(/</g,'&lt;')}</pre>`
+    : '';
+
+  const historyRows = events.map(e=>`
+    <div class="modal-event-row">
+      <span class="badge ${e.domain}">${e.domain}</span>
+      <span>${e.eventName||'-'}</span>
+      <time>${e.receivedAt ? new Date(e.receivedAt).toLocaleTimeString() : ''}</time>
+    </div>`).join('');
+
+  body.innerHTML = `
+    ${metaGrid}
+    <div class="modal-actions" style="display:flex; justify-content:flex-end; margin: 0.5rem 0 1rem;">
+      <button class="btn small ${acked?'':'primary'}" id="alarmModalAckBtn">${acked?'Unacknowledge':'Acknowledge'}</button>
+    </div>
+    ${latestRawBlock}
+    <h5>Occurrence History (${events.length})</h5>
+    <div id="alarmModalEvents">${historyRows || '<div class="empty-state">No matching raw events in the current buffer.</div>'}</div>
+  `;
+
+  document.getElementById('alarmModalAckBtn').addEventListener('click', ()=>{
+    if(ackedAlarms.has(group.key)) ackedAlarms.delete(group.key); else ackedAlarms.add(group.key);
+    saveAcks();
+    renderAlarms();
+    openAlarmModal(key, computeAlarmGroups());
+  });
+
+  backdrop.classList.add('open');
+}
+
+document.getElementById('alarmModalClose').addEventListener('click', ()=>{
+  document.getElementById('alarmModalBackdrop').classList.remove('open');
+});
+document.getElementById('alarmModalBackdrop').addEventListener('click', (e)=>{
+  if(e.target.id==='alarmModalBackdrop') e.target.classList.remove('open');
+});
+
 function updateNavBadges(groups){
  const g = groups || computeAlarmGroups();
  const openCount = g.filter(x=>x.severity!=='CLEARED' && !ackedAlarms.has(x.key)).length;
@@ -1231,6 +1454,8 @@ function updateNavBadges(groups){
  document.getElementById('navFilesBadge').textContent = cachedFiles.length;
  const pnfBadge = document.getElementById('navPnfBadge');
  if (pnfBadge) pnfBadge.textContent = cachedPNFs.length;
+ const stndBadge = document.getElementById('navStndBadge');
+ if (stndBadge) stndBadge.textContent = cachedEvents.filter(e=>e.domain==='stndDefined').length;
 }
 
 /* ============================================================
@@ -1276,6 +1501,7 @@ async function refresh(){
  await loadPNFs();
  await loadFiles();
  renderAlarms();
+ renderStnd();
  if(currentView==='pnf') renderPNFs();
 }
 

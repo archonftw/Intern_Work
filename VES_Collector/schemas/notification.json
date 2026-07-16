@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VesEventNotificationSchema",
+  "type": "object",
+  "required": ["event"],
+  "properties": {
+    "event": {
+      "type": "object",
+      "required": ["commonEventHeader", "notificationFields"],
+      "properties": {
+        "commonEventHeader": {
+          "type": "object",
+          "required": [
+            "domain",
+            "eventId",
+            "eventName",
+            "eventType",
+            "sequence",
+            "priority",
+            "reportingEntityName",
+            "sourceName",
+            "startEpochMicrosec",
+            "lastEpochMicrosec",
+            "nfNamingCode",
+            "nfVendorName",
+            "timeZoneOffset",
+            "version",
+            "vesEventListenerVersion"
+          ],
+          "properties": {
+            "domain": { "type": "string" },
+            "eventId": { "type": "string" },
+            "eventName": { "type": "string" },
+            "eventType": { "type": "string" },
+            "sequence": { "type": "integer" },
+            "priority": { "type": "string", "enum": ["High", "Medium", "Low", "Critical"] },
+            "reportingEntityId": { "type": "string" },
+            "reportingEntityName": { "type": "string" },
+            "sourceId": { "type": "string" },
+            "sourceName": { "type": "string" },
+            "startEpochMicrosec": { "type": "string" },
+            "lastEpochMicrosec": { "type": "string" },
+            "nfNamingCode": { "type": "string" },
+            "nfVendorName": { "type": "string" },
+            "timeZoneOffset": { "type": "string" },
+            "version": { "type": "string" },
+            "vesEventListenerVersion": { "type": "string" }
+          }
+        },
+        "notificationFields": {
+          "type": "object",
+          "required": [
+            "additionalFields",
+            "changeContact",
+            "changeIdentifier",
+            "changeType",
+            "newState",
+            "oldState",
+            "notificationFieldsVersion",
+            "stateInterface"
+          ],
+          "properties": {
+            "additionalFields": {
+              "type": "object",
+              "required": ["eventTime"],
+              "properties": {
+                "eventTime": { "type": "string" }
+              }
+            },
+            "changeContact": { "type": "string" },
+            "changeIdentifier": { "type": "string" },
+            "changeType": { "type": "string" },
+            "newState": { "type": "string" },
+            "oldState": { "type": "string" },
+            "notificationFieldsVersion": { "type": "string" },
+            "stateInterface": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

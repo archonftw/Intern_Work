@@ -10,11 +10,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse, unquote
 
-from jsonschema import validate
 
 import storage.memory
 
-from schemas.schema import FILE_READY_SCHEMA
 from config import (
     MAX_FILE_STORE,
     ALLOW_REMOTE_FETCH,
@@ -147,38 +145,13 @@ def store_file_entries(records: List[Dict[str, Any]]) -> None:
 
 def process_file_ready(event: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    Validate, extract and store fileReady entries.
+    Extract and store fileReady entries.
 
-    The real event arrives wrapped (commonEventHeader + stndDefinedFields
-    as siblings), but FILE_READY_SCHEMA expects a flat object. We
-    reconstruct that flat shape from the header for validation purposes.
-
-    IMPORTANT: only include a key if the header actually has it. Writing
-    `key: None` for an absent-but-optional field (e.g. vesEventListenerVersion)
-    makes jsonschema treat it as "present but wrong type" instead of
-    "absent", which would wrongly reject valid events that simply don't
-    populate every optional header field.
+    Schema validation already happened upstream in validation.py's
+    _validate_stnd_defined(), which validates event["stndDefinedFields"]
+    against stndDefined-notifyFileReady.json before process_stnd() (and
+    therefore this function) is ever called. No re-validation needed here.
     """
-    header = event.get("commonEventHeader", {})
-
-    validation_payload = {
-        "domain": header.get("domain"),
-        "eventName": header.get("eventName"),
-        "sourceName": header.get("sourceName"),
-        "stndDefinedFields": event.get("stndDefinedFields"),
-    }
-
-    optional_fields = [
-        "eventType", "priority", "version", "reportingEntityName",
-        "sequence", "lastEpochMicrosec", "vesEventListenerVersion",
-    ]
-    for field in optional_fields:
-        value = header.get(field)
-        if value is not None:
-            validation_payload[field] = value
-
-    validate(validation_payload, FILE_READY_SCHEMA)
-
     records = extract_file_entries(event)
     store_file_entries(records)
 

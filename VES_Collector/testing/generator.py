@@ -137,33 +137,77 @@ def heartbeat_event(device=None):
 
 
 def fault_event(device=None):
+    global _FAULT_SEQUENCE_COUNT
+    
+    # Safely handle the device initialization context just like your original code
     device = device or get_device()
+    
+    # Pick random attributes matching your deployment options
+    alarm = random.choice([
+        "Cell Down", 
+        "Link Failure", 
+        "Radio Failure", 
+        "Power Alarm"
+    ])
+    severity = random.choice(["WARNING", "MAJOR", "CRITICAL"])
+    priority = "High" if severity == "CRITICAL" else "Low"
+    
+    # Time generation (Microseconds as a string to match the schema rule)
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    # Extract mock parameters out of your device dictionary payload safely
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    model = device.get("model", "Model-X")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
 
-    return {
+    # Build the payload directly mimicking your dynamic JSON schema architecture
+    event_payload = {
         "event": {
-            "commonEventHeader": common_header(
-                "fault",
-                "Alarm",
-                device["name"]
-            ),
+            "commonEventHeader": {
+                "domain": "fault",
+                "eventId": f"fault-{current_time_ms}-{_FAULT_SEQUENCE_COUNT}",
+                "eventName": f"fault_Fault_Alarms_{alarm.replace(' ', '')}",
+                "eventType": "Fault_Alarms",
+                "sequence": _FAULT_SEQUENCE_COUNT,
+                "priority": priority,
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "vesEventListenerVersion": "7.2.1"
+            },
             "faultFields": {
-                "alarmCondition": random.choice([
-                    "Cell Down",
-                    "Link Failure",
-                    "Radio Failure",
-                    "Power Alarm"
-                ]),
+                "faultFieldsVersion": "4.0",
+                "alarmCondition": alarm,
                 "alarmInterfaceA": "N1",
-                "eventSeverity": random.choice([
-                    "WARNING",
-                    "MAJOR",
-                    "CRITICAL"
-                ]),
+                "eventSourceType": "Fault_Alarms",
                 "specificProblem": "Auto Generated Fault",
-                "faultFieldsVersion": "4.0"
+                "eventSeverity": severity,
+                "vfStatus": "Active",
+                "alarmAdditionalInformation": {
+                    "eventTime": iso_time,
+                    "equipType": equip_type,
+                    "vendor": vendor,
+                    "model": model
+                }
             }
         }
     }
+    
+    # Step the sequence counter forward for the next incoming execution
+    _FAULT_SEQUENCE_COUNT += 1
+    
+    return event_payload
 
 
 def notification_event(device=None):
@@ -467,6 +511,7 @@ def post_event(event):
             json=event,
             timeout=5
         )
+        print("BODY:", response.text)
 
         print(
             f"[{datetime.now().strftime('%H:%M:%S')}] "
