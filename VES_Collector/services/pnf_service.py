@@ -28,73 +28,83 @@ def _safe_get(data, key, default=""):
 
 def extract_pnf_fields(event):
     """
-    Extract the required fields from a pnfRegistration VES event.
+    Extract the required fields from either a native pnfRegistration 
+    or a stndDefined pnfRegistration VES event.
     """
-
     event_data = event.get("event", {})
-
     header = event_data.get("commonEventHeader", {})
-    pnf_fields = event_data.get("pnfRegistrationFields", {})
-    additional = pnf_fields.get("additionalFields", {})
+    domain = header.get("domain", "")
+
+    # Initialize empty tracking scopes
+    unit_type = ""
+    unit_family = ""
+    model_number = ""
+    serial_number = ""
+    software_version = ""
+    oam_v4_ip_address = ""
+    protocol = ""
+    username = ""
+    password = ""
+    
+    # Extract baseline fallback vendor directly from header fields
+    vendor_name = header.get("nfVendorName") or header.get("vendorName") or ""
+
+    # ==========================================
+    # Path A: Handle Standard-Defined Events
+    # ==========================================
+    if domain == "stndDefined":
+        stnd_fields = event_data.get("stndDefinedFields", {}) or {}
+        data = stnd_fields.get("data", {}) or {}
+        
+        unit_type = _safe_get(data, "unitType")
+        unit_family = _safe_get(data, "unitFamily")
+        model_number = _safe_get(data, "modelNumber")
+        serial_number = _safe_get(data, "serialNumber")
+        software_version = _safe_get(data, "softwareVersion")
+        oam_v4_ip_address = _safe_get(data, "oamV4IpAddress")
+        
+        # Pull configurations from 3GPP data nested structures if present
+        protocol = _safe_get(data, "protocol")
+        username = _safe_get(data, "username")
+        password = _safe_get(data, "password")
+        
+        if not vendor_name:
+            vendor_name = _safe_get(data, "vendorName")
+
+    # ==========================================
+    # Path B: Handle Native Native VES Domain
+    # ==========================================
+    else:
+        pnf_fields = event_data.get("pnfRegistrationFields", {}) or {}
+        additional = pnf_fields.get("additionalFields", {}) or {}
+        
+        unit_type = _safe_get(pnf_fields, "unitType")
+        unit_family = _safe_get(pnf_fields, "unitFamily")
+        model_number = _safe_get(pnf_fields, "modelNumber")
+        serial_number = _safe_get(pnf_fields, "serialNumber")
+        software_version = _safe_get(pnf_fields, "softwareVersion")
+        oam_v4_ip_address = _safe_get(pnf_fields, "oamV4IpAddress")
+        
+        protocol = _safe_get(additional, "protocol")
+        username = _safe_get(additional, "username")
+        password = _safe_get(additional, "password")
+        
+        if not vendor_name:
+            vendor_name = _safe_get(additional, "vendorName")
 
     return {
         "receivedTime": _utc_now(),
-
-        "unitType": _safe_get(
-            pnf_fields,
-            "unitType"
-        ),
-
-        "unitFamily": _safe_get(
-            pnf_fields,
-            "unitFamily"
-        ),
-
-        "modelNumber": _safe_get(
-            pnf_fields,
-            "modelNumber"
-        ),
-
-        "serialNumber": _safe_get(
-            pnf_fields,
-            "serialNumber"
-        ),
-
-        "softwareVersion": _safe_get(
-            pnf_fields,
-            "softwareVersion"
-        ),
-
-        "oamV4IpAddress": _safe_get(
-            pnf_fields,
-            "oamV4IpAddress"
-        ),
-
-        "protocol": _safe_get(
-            additional,
-            "protocol"
-        ),
-
-        "username": _safe_get(
-            additional,
-            "username"
-        ),
-
-        "password": _safe_get(
-            additional,
-            "password"
-        ),
-
-        # Prefer commonEventHeader.vendorName if present.
-        # If your generator later places it inside additionalFields,
-        # this will still work.
-        "vendorName": (
-            header.get("vendorName")
-            or additional.get("vendorName")
-            or ""
-        )
+        "unitType": unit_type,
+        "unitFamily": unit_family,
+        "modelNumber": model_number,
+        "serialNumber": serial_number,
+        "softwareVersion": software_version,
+        "oamV4IpAddress": oam_v4_ip_address,
+        "protocol": protocol,
+        "username": username,
+        "password": password,
+        "vendorName": vendor_name
     }
-
 
 # ==========================================================
 # Storage + automatic forwarding

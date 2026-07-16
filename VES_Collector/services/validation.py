@@ -22,7 +22,7 @@ STND_SCHEMA_MAP = {
     "notifyClearedAlarm": "stndDefined-notifyClearedAlarm",
     "notifyFileReady": "stndDefined-notifyFileReady",
     "notifyPNFRegistration": "stndDefined-notifyPNFRegistration",
-    "heartbeat": "stndDefined-heartbeat",
+    "notifyHeartbeat": "stndDefined-heartbeat",  #  Updated key string
 }
 
 
@@ -50,15 +50,29 @@ def validate_domain(event):
     validate({"event": event}, schema)   # Wrapped envelope layout
 
 
+# =====================================================================
+# Update the mapping dictionary key to match 3GPP standard conventions
+# =====================================================================
+STND_SCHEMA_MAP = {
+    "notifyNewAlarm": "stndDefined-notifyNewAlarm",
+    "notifyClearedAlarm": "stndDefined-notifyClearedAlarm",
+    "notifyFileReady": "stndDefined-notifyFileReady",
+    "notifyPNFRegistration": "stndDefined-notifyPNFRegistration",
+    "notifyHeartbeat": "stndDefined-heartbeat",  #  Updated key string
+}
+
 def _resolve_stnd_type(event: dict) -> str | None:
     header = event.get("commonEventHeader", {})
-    # Strip special string formatting structure parameters cleanly
     event_name = header.get("eventName", "").lower().replace("-", "").replace("_", "")
     stnd_fields = event.get("stndDefinedFields", {}) or {}
     data = stnd_fields.get("data", {})
 
+    # =====================================================================
+    # Update the return value here to match the updated dictionary key
+    # =====================================================================
     if "heartbeat" in event_name:
-        return "heartbeat"
+        return "notifyHeartbeat"  # Updated return value
+        
     if "cleared" in event_name:
         return "notifyClearedAlarm"
     if isinstance(data.get("fileInfoList"), list) or "fileready" in event_name:

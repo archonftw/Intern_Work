@@ -64,6 +64,7 @@ _STND_FAULT_SEQUENCE_COUNT = 0
 _STND_FILE_SEQUENCE_COUNT = 0
 _STND_NEW_ALARM_SEQUENCE_COUNT = 0
 _TCA_SEQUENCE_COUNT = 0
+_STND_PNF_REG_SEQUENCE_COUNT = 0
 
 def get_device(name=None):
     """Return a device record by name, or a random one."""
@@ -250,8 +251,8 @@ def pnf_registration_event(device=None):
     sw_ver = device.get("softwareVersion", "1.0.0")
     ip_addr = device.get("ip", "127.0.0.1")
     
-    manufacture_date = "2025-01-16"
-    last_service_date = "2025-03-26"
+    manufacture_date = "2026-01-16"
+    last_service_date = "2026-03-26"
     mac_address = f"00:0A:95:{random.randint(10,99)}:{random.randint(10,99)}:{random.randint(10,99)}"
 
     event_payload = {
@@ -707,6 +708,91 @@ def threshold_crossing_alert_event(device=None):
     _TCA_SEQUENCE_COUNT += 1
     return send_to_ves(event_payload, f"Threshold Crossing Alert ({metric})")
 
+def stnd_defined_pnf_registration_event(device=None):
+    global _STND_PNF_REG_SEQUENCE_COUNT
+    device = device or get_device()
+    
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    model = device.get("model", "Model-X")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
+    serial = device.get("serialNumber", "SN-UNKNOWN")
+    sw_ver = device.get("softwareVersion", "1.0.0")
+    ip_addr = device.get("ip", "127.0.0.1")
+    
+    manufacture_date = "2026-01-16"
+    last_service_date = "2026-03-26"
+    mac_address = f"00:0A:95:{random.randint(10,99)}:{random.randint(10,99)}:{random.randint(10,99)}"
+
+    event_payload = {
+        "event": {
+            "commonEventHeader": {
+                "domain": "stndDefined",
+                "eventId": f"stnd-pnfreg-{current_time_ms}-{_STND_PNF_REG_SEQUENCE_COUNT}",
+                "eventName": "stndDefined_pnfregistration_notifyPNFRegistration",
+                "eventType": "pnfregistration_notifyPNFRegistration",
+                "sequence": _STND_PNF_REG_SEQUENCE_COUNT,
+                "priority": "Low",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "stndDefinedNamespace": "O1-Provisioning",
+                "vesEventListenerVersion": "7.2.1"
+            },
+            "stndDefinedFields": {
+                "schemaReference": "https://forge.3gpp.org/rep/sa5/MnS/raw/Rel-16/OpenAPI/TS28532_ProvMnS.yaml#components/schemas/NotifyPnfRegistration",
+                "stndDefinedFieldsVersion": "1.0",
+                "data": {
+                    "object-class": "ManagedElement",
+                    "object-instance": f"SubNetwork=RAN,MeContext={device_name},ManagedElement={serial}",
+                    "notification-identifier": f"notif-id-{_STND_PNF_REG_SEQUENCE_COUNT}",
+                    "notification-type": "notifyPNFRegistration",
+                    "event-time": iso_time,
+                    "system": "O1-OAM",
+                    "o1-specification-version": "1.0.0",
+                    "vendor-pen": str(random.randint(1000, 9999)),
+                    "vendor-name": vendor,
+                    "oam-host": ip_addr,
+                    "oam-port": 830,
+                    "unit-family": f"{vendor}-{equip_type}",
+                    "unit-type": equip_type,
+                    "restart-reason": "PowerCycle",
+                    "serial-number": f"{vendor}-{equip_type}-{serial}",
+                    "macAddress": mac_address,
+                    "modelNumber": model,
+                    "softwareVersion": sw_ver,
+                    "manufactureDate": manufacture_date,
+                    "lastServiceDate": last_service_date,
+                    "transport-protocol": "SSH",
+                    "username": "netconf",
+                    "password": "netconf-password!",
+                    "reconnect-on-changed-schema": "false",
+                    "sleep-factor": "1.5",
+                    "tcpOnly": "false",
+                    "connection-timeout": "20000",
+                    "max-connection-attempts": "100",
+                    "between-attempts-timeout": "2000",
+                    "keepalive-delay": "120"
+                }
+            }
+        }
+    }
+    
+    _STND_PNF_REG_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, "Standard-Defined 3GPP PNF Registration")
+
 def send_to_ves(payload: dict, event_description: str) -> dict:
     """Utility method to handle the REST HTTP connection logic securely."""
     print(f"Connecting to collector at {VES_URL} ...")
@@ -735,16 +821,17 @@ if __name__ == "__main__":
         ("StndDefined 3GPP Cleared Alarm", stnd_defined_notify_cleared_alarm_event),
         ("StndDefined 3GPP File Ready", stnd_defined_notify_file_ready_event),
         ("StndDefined 3GPP New Alarm", stnd_defined_notify_new_alarm_event),
-        ("Threshold Crossing Alert (TCA)", threshold_crossing_alert_event)
+        ("Threshold Crossing Alert (TCA)", threshold_crossing_alert_event),
+        ("StndDefined PNF Registration", stnd_defined_pnf_registration_event)
     ]
     
     test_device = get_device()
     print(f"Using Target Node Profile: {test_device['name']} ({test_device['vendor']})\n")
 
     for index, (label, event_function) in enumerate(all_event_types, 1):
-        print(f"=== [Step {index}/10] Sending Schema Vector: {label} ===")
+        print(f"=== [Step {index}/11] Sending Schema Vector: {label} ===")
         event_function(device=test_device)
         print("-" * 60)
         time.sleep(1)
         
-    print("All 10 distinct VES test packages dispatched sequentially.")
+    print("All 11 distinct VES test packages dispatched sequentially.")

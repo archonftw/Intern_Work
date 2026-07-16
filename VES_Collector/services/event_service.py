@@ -12,6 +12,7 @@ from services.validation import validate_domain
 from services.device_service import update_device
 from services.stnd_service import process_stnd
 from config import MAX_GLOBAL_EVENT_STORE
+from services.validation import _resolve_stnd_type
 
 logger = logging.getLogger("VES-COLLECTOR")
 
@@ -23,8 +24,16 @@ def process_event(event):
         process_pnf_registration({"event": event})
 
     elif domain == "stndDefined":
+        # First, run the generic standard-defined handler if you need it for logs/other states
         process_stnd(event)
-
+        
+        # Second, resolve what kind of 3GPP event this actually is
+        resolved_type = _resolve_stnd_type(event)
+        
+        if resolved_type == "notifyPNFRegistration":
+            logger.info("Routing standard-defined PNF registration to PNF processor")
+            # Wrap it up in the {"event": event} envelope that your updated process_pnf_registration expects!
+            process_pnf_registration({"event": event})
 
 def store_event(event: Dict[str, Any]) -> Dict[str, Any]:
     header = event.get("commonEventHeader", {})
