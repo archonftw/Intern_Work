@@ -184,6 +184,36 @@ FILE_READY_SCHEMA = {
     }
 }
 
+MEASUREMENT_SCHEMA = {
+    "type": "object",
+    "required": [
+        "measurementInterval",
+        "measurements"
+    ],
+    "properties": {
+        "measurementInterval": {
+            "type": "number"
+        },
+        "measurements": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "value"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "value": {}
+                }
+            }
+        }
+    }
+}
+
 
 NOTIFICATION_SCHEMA = {
     "type": "object",
