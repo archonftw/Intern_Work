@@ -4,91 +4,67 @@ import uuid
 import time
 import os
 import tempfile
-from datetime import datetime,timedelta,UTC
-from utils import VENDOR_MODELS
 
-VES_URL = "http://localhost:8080/eventListener/v7"
-
-
+VENDOR_MODELS = [
+    ("Ericsson", "Radio 4408"), ("Ericsson", "AIR 6449"), ("Ericsson", "Baseband 6630"), ("Ericsson", "Router 6675"),
+    ("Nokia", "AirScale-BTS"), ("Nokia", "AirScale-DU"), ("Nokia", "AirScale-CU"), ("Nokia", "AirScale-Radio"),
+    ("Huawei", "BBU5900"), ("Huawei", "BBU3910"), ("Huawei", "LampSite"), ("Huawei", "AAU5613"),
+    ("Samsung", "vRAN-CU"), ("Samsung", "vRAN-DU"), ("Samsung", "Compact Macro"), ("Samsung", "Massive MIMO Radio"),
+    ("Mavenir", "OpenRAN-DU"), ("Mavenir", "OpenRAN-CU"), ("Mavenir", "OpenBeam-RU"),
+    ("Radisys", "Connect RAN DU"), ("Radisys", "Connect RAN CU"), ("Radisys", "Open RAN Platform"),
+    ("NEC", "5G DU"), ("NEC", "5G CU"), ("NEC", "Radio Unit"),
+    ("Fujitsu", "5G DU"), ("Fujitsu", "Virtual CU"), ("Fujitsu", "Radio Unit"),
+    ("Cisco", "Ultra Packet Core"), ("Cisco", "NCS540"), ("Cisco", "Catalyst 8500"),
+    ("Juniper", "MX480"), ("Juniper", "ACX7100"), ("Juniper", "PTX10001"),
+    ("Ciena", "6500 Packet Optical"), ("Ciena", "WaveLogic 5"),
+    ("ZTE", "ZXSDR B8200"), ("ZTE", "AAU 64T64R"),
+    ("Intel", "FlexRAN Reference Platform"), ("Dell", "PowerEdge XR8000"),
+    ("HPE", "ProLiant DL360 Gen11"), ("Supermicro", "SuperServer SYS-220")
+]
 
 NETWORK_FUNCTIONS = []
 
 for name in [
-    # gNBs
-    "gNB-01",
-    "gNB-02",
-    "gNB-03",
-    "gNB-04",
-
-    # Distributed Units
-    "DU-01",
-    "DU-02",
-    "DU-03",
-    "DU-04",
-
-    # Central Units
-    "CU-CP-01",
-    "CU-CP-02",
-    "CU-UP-01",
-    "CU-UP-02",
-
-    # Radio Units
-    "RU-01",
-    "RU-02",
-    "RU-03",
-    "RU-04",
-
-    # 5G Core
-    "AMF-01",
-    "AMF-02",
-    "SMF-01",
-    "SMF-02",
-    "UPF-01",
-    "UPF-02",
-    "UDM-01",
-    "UDM-02",
-    "AUSF-01",
-    "PCF-01",
-    "NSSF-01",
-    "NRF-01",
-    "NEF-01",
-    "AF-01",
-    "LMF-01",
-
-    # IMS / Voice
-    "IMS-01",
-    "SBC-01",
-    "PCRF-01",
-
-    # Transport
-    "Router-01",
-    "Router-02",
-    "Switch-01",
-    "Switch-02",
-
-    # Edge / MEC
-    "MEC-01",
-    "MEC-02",
-
-    # O-RAN Components
-    "Near-RT-RIC-01",
-    "Non-RT-RIC-01",
-    "O-CU-01",
-    "O-DU-01",
-    "O-RU-01",
+    "gNB-01", "gNB-02", "gNB-03", "gNB-04",
+    "DU-01", "DU-02", "DU-03", "DU-04",
+    "CU-CP-01", "CU-CP-02", "CU-UP-01", "CU-UP-02",
+    "RU-01", "RU-02", "RU-03", "RU-04",
+    "AMF-01", "AMF-02", "SMF-01", "SMF-02", "UPF-01", "UPF-02",
+    "UDM-01", "UDM-02", "AUSF-01", "PCF-01", "NSSF-01", "NRF-01",
+    "NEF-01", "AF-01", "LMF-01", "IMS-01", "SBC-01", "PCRF-01",
+    "Router-01", "Router-02", "Switch-01", "Switch-02",
+    "MEC-01", "MEC-02", "Near-RT-RIC-01", "Non-RT-RIC-01",
+    "O-CU-01", "O-DU-01", "O-RU-01"
 ]:
     vendor, model = random.choice(VENDOR_MODELS)
+    equip_type = name.split("-")[0]
     NETWORK_FUNCTIONS.append({
-    "name": name,
-    "vendor": vendor,
-    "model": model,
-    "serialNumber": uuid.uuid4().hex[:8].upper(),
-    "softwareVersion": f"{random.randint(20,24)}.{random.randint(0,9)}.{random.randint(0,9)}",
-    "ip": f"192.168.1.{random.randint(2,254)}"
-})
+        "name": name,
+        "vendor": vendor,
+        "model": model,
+        "type": equip_type,
+        "pnfId": f"pnf-{name.lower()}",
+        "serialNumber": uuid.uuid4().hex[:8].upper(),
+        "softwareVersion": f"{random.randint(20,24)}.{random.randint(0,9)}.{random.randint(0,9)}",
+        "ip": f"192.168.1.{random.randint(2,254)}"
+    })
 
 PM_FILE_DIR = os.path.join(tempfile.gettempdir(), "ves_pm_files")
 os.makedirs(PM_FILE_DIR, exist_ok=True)
+
+# Global configuration and sequence states
+VES_URL = "http://localhost:8080/eventListener/v7"
+_FAULT_SEQUENCE_COUNT = 0
+_HEARTBEAT_SEQUENCE_COUNT = 0
+_NOTIFICATION_SEQUENCE_COUNT = 0
+_PNF_REG_SEQUENCE_COUNT = 0
+_STATE_CHANGE_SEQUENCE_COUNT = 0
+_STND_HB_SEQUENCE_COUNT = 0
+_STND_FAULT_SEQUENCE_COUNT = 0
+_STND_FILE_SEQUENCE_COUNT = 0
+_STND_NEW_ALARM_SEQUENCE_COUNT = 0
+_TCA_SEQUENCE_COUNT = 0
+_STND_PNF_REG_SEQUENCE_COUNT = 0
 
 def get_device(name=None):
     """Return a device record by name, or a random one."""
@@ -96,75 +72,24 @@ def get_device(name=None):
         return next(d for d in NETWORK_FUNCTIONS if d["name"] == name)
     return random.choice(NETWORK_FUNCTIONS)
 
-
-def current_microseconds():
-    return int(time.time() * 1_000_000)
-
-
-def common_header(domain, event_type, source, event_name=None):
-    now = current_microseconds()
-
-    return {
-        "domain": domain,
-        "eventId": str(uuid.uuid4()),
-        "eventName": event_name or f"{domain}_event",
-        "eventType": event_type,
-        "sequence": random.randint(1, 100000),
-        "priority": random.choice(["Normal", "High"]),
-        "reportingEntityName": source,
-        "sourceName": source,
-        "startEpochMicrosec": now,
-        "lastEpochMicrosec": now,
-        "version": "4.0"
-    }
-
-
-def heartbeat_event(device=None):
-    device = device or get_device()
-
-    return {
-        "event": {
-            "commonEventHeader": common_header(
-                "heartbeat",
-                "System",
-                device["name"]
-            ),
-            "heartbeatFields": {
-                "heartbeatInterval": 30
-            }
-        }
-    }
-
-
 def fault_event(device=None):
     global _FAULT_SEQUENCE_COUNT
-    
-    # Safely handle the device initialization context just like your original code
     device = device or get_device()
     
-    # Pick random attributes matching your deployment options
-    alarm = random.choice([
-        "Cell Down", 
-        "Link Failure", 
-        "Radio Failure", 
-        "Power Alarm"
-    ])
+    alarm = random.choice(["Cell Down", "Link Failure", "Radio Failure", "Power Alarm"])
     severity = random.choice(["WARNING", "MAJOR", "CRITICAL"])
     priority = "High" if severity == "CRITICAL" else "Low"
     
-    # Time generation (Microseconds as a string to match the schema rule)
     current_time_ms = int(time.time() * 1000)
     timestamp_str = str(current_time_ms * 1000)
     iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     
-    # Extract mock parameters out of your device dictionary payload safely
     device_name = device.get("name", "Unknown-Device")
     vendor = device.get("vendor", "Generic-Vendor")
     equip_type = device.get("type", "O-RU")
     model = device.get("model", "Model-X")
     pnf_id = device.get("pnfId", f"pnf-{device_name}")
 
-    # Build the payload directly mimicking your dynamic JSON schema architecture
     event_payload = {
         "event": {
             "commonEventHeader": {
@@ -204,355 +129,709 @@ def fault_event(device=None):
         }
     }
     
-    # Step the sequence counter forward for the next incoming execution
     _FAULT_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, f"Fault Alarm ({alarm})")
+
+def heartbeat_event(device=None):
+    global _HEARTBEAT_SEQUENCE_COUNT
+    device = device or get_device()
     
-    return event_payload
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
 
-
-def notification_event(device=None):
-    device = device or get_device()
-
-    return {
-        "event": {
-            "commonEventHeader": common_header(
-                "notification",
-                "Notification",
-                device["name"]
-            ),
-            "notificationFields": {
-                "changeIdentifier": str(uuid.uuid4()),
-                "changeType": random.choice([
-                    "Software",
-                    "Configuration",
-                    "Policy"
-                ]),
-                "notificationFieldsVersion": "4.0"
-            }
-        }
-    }
-
-def pnf_registration_event(device=None):
-    device = device or get_device()
-
-    manufacture_date = (
-        datetime.now() - timedelta(days=random.randint(500, 3000))
-    ).strftime("%Y-%m-%d")
-
-    last_service_date = (
-        datetime.now() - timedelta(days=random.randint(1, 365))
-    ).strftime("%Y-%m-%d")
-
-    return {
-        "event": {
-            "commonEventHeader": common_header(
-                "pnfRegistration",
-                "PNF Registration",
-                device["name"]
-            ),
-            "pnfRegistrationFields": {
-                "pnfRegistrationFieldsVersion": "4.0",
-                "lastServiceDate": last_service_date,
-                "macAddress": ":".join(
-                    f"{random.randint(0,255):02X}" for _ in range(6)
-                ),
-                "manufactureDate": manufacture_date,
-                "modelNumber": device["model"],
-                "oamV4IpAddress": device["ip"],
-                "serialNumber": device["serialNumber"],
-                "softwareVersion": device["softwareVersion"],
-                "unitFamily": random.choice([
-                    "5G-RAN",
-                    "vDU",
-                    "vCU",
-                    "RU"
-                ]),
-                "unitType": random.choice([
-                    "gNB",
-                    "DU",
-                    "CU",
-                    "RU"
-                ]),
-                "additionalFields": {
-                    "protocol": random.choice([
-                        "SSH",
-                        "HTTPS",
-                        "NETCONF"
-                    ]),
-                    "vendorName":random.choice([
-                        "Radisys","Ercission","Nokia","Samsung"
-                    ]),
-                    "username": "root",
-                    "password": "root",
-                    "port": random.choice([
-                        22,
-                        443,
-                        830
-                    ]),
-                    "keyId": f"KEY-{uuid.uuid4().hex[:8].upper()}"
-                }
-            }
-        }
-    }
-
-def state_change_event(device=None):
-    device = device or get_device()
-
-    return {
-        "event": {
-            "commonEventHeader": common_header(
-                "stateChange",
-                "State",
-                device["name"]
-            ),
-            "stateChangeFields": {
-                "oldState": random.choice([
-                    "LOCKED",
-                    "DISABLED"
-                ]),
-                "newState": random.choice([
-                    "UNLOCKED",
-                    "ENABLED"
-                ]),
-                "stateInterface": "O1"
-            }
-        }
-    }
-
-
-def threshold_event(device=None):
-    device = device or get_device()
-
-    cpu = round(random.uniform(80, 100), 2)
-
-    return {
-        "event": {
-            "commonEventHeader": common_header(
-                "thresholdCrossingAlert",
-                "Threshold",
-                device["name"]
-            ),
-            "thresholdCrossingAlertFields": {
-                "indicatorName": "CPU_Usage",
-                "indicatorValue": cpu,
-                "thresholdValue": 90
-            }
-        }
-    }
-
-
-def _write_pm_file(device):
-    """
-    Write a small pseudo-3GPP PM measurement XML file to disk and return
-    (file_path, file_size_bytes). This stands in for what a real NF would
-    push to an SFTP/S3 endpoint - here it's a real local file so the
-    collector's fileReady preview can actually fetch and display it.
-    """
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    file_id = uuid.uuid4().hex
-
-    content = f"""<?xml version="1.0" encoding="UTF-8"?>
-<measCollecFile xmlns="http://www.3gpp.org/ftp/specs/archive/32_series/32.435#measCollec">
-  <fileHeader fileFormatVersion="32.435 V10.0" vendorName="{device['vendor']}" dnPrefix="{device['name']}">
-    <fileSender localDn="{device['name']}"/>
-    <measCollec beginTime="{now}"/>
-  </fileHeader>
-  <measData>
-    <managedElement localDn="ManagedElement=1,GNBDUFunction=1" swVersion="{device['softwareVersion']}"/>
-    <measInfo measInfoId="PM_{file_id}">
-      <granPeriod duration="PT15M" endTime="{now}"/>
-      <repPeriod duration="PT15M"/>
-      <measTypes>CPU_Usage Memory_Usage Connected_UEs Throughput_Mbps</measTypes>
-      <measValue measObjLdn="{device['name']}">
-        <r p="1">{round(random.uniform(10, 99), 2)}</r>
-        <r p="2">{round(random.uniform(20, 95), 2)}</r>
-        <r p="3">{random.randint(50, 1000)}</r>
-        <r p="4">{round(random.uniform(100, 3000), 2)}</r>
-      </measValue>
-    </measInfo>
-  </measData>
-  <fileFooter>
-    <measCollec endTime="{now}"/>
-  </fileFooter>
-</measCollecFile>
-"""
-
-    filename = f"{file_id}.xml"
-    filepath = os.path.join(PM_FILE_DIR, filename)
-    with open(filepath, "w") as f:
-        f.write(content)
-
-    return filepath, os.path.getsize(filepath)
-
-
-def stnd_file_ready_event(device=None):
-    device = device or get_device()
-
-    now = datetime.now(UTC)
-    filepath, file_size = _write_pm_file(device)
-
-    return {
+    event_payload = {
         "event": {
             "commonEventHeader": {
-                **common_header(
-                    "stndDefined",
-                    "FileReady",
-                    device["name"],
-                    "stndDefined_FileReady"
-                ),
-                "eventType": "fileReady",
-                "version": "4.0",
-                "sequence": random.randint(1, 100000),
-                "vesEventListenerVersion": "7.2"
+                "domain": "heartbeat",
+                "eventId": f"hb-{current_time_ms}-{_HEARTBEAT_SEQUENCE_COUNT}",
+                "eventName": f"heartbeat_{device_name}",
+                "eventType": "heartbeat",
+                "sequence": _HEARTBEAT_SEQUENCE_COUNT,
+                "priority": "Low",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "vesEventListenerVersion": "7.2.1"
             },
-            "stndDefinedFields": {
-                "stndDefinedFieldsVersion": "1.0",
-                "data": {
-                    "systemDN": "ManagedElement=1,GNBDUFunction=1",
-                    "additionalText": "Bulk data file transfer readiness notification.",
-                    "eventTime": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                    "fileInfoList": [
-                        {
-                            "fileSize": file_size,
-                            "fileLocation": f"file://{filepath}",
-                            "fileFormat": "XML",
-                            "fileDataType": "PM",
-                            "fileReadyTime": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                            "fileExpirationTime": (
-                                now + timedelta(days=7)
-                            ).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                            "fileCompression": "none"
-                        }
-                    ]
+            "heartbeatFields": {
+                "heartbeatFieldsVersion": "3.0",
+                "heartbeatInterval": random.choice([20, 30, 60]),
+                "additionalFields": {
+                    "eventTime": iso_time
                 }
             }
         }
     }
+    
+    _HEARTBEAT_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, "Periodic Heartbeat")
 
-def stnd_o1_registration_event(device=None):
+def notification_event(device=None):
+    global _NOTIFICATION_SEQUENCE_COUNT
     device = device or get_device()
+    
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
+    
+    change_type = random.choice(["informal", "configurationChange", "stateChange"])
+    new_state = random.choice(["all-good", "in-service", "active"])
+    old_state = random.choice(["not-too-bad", "maintenance", "standby"])
 
-    return {
+    event_payload = {
         "event": {
-            "commonEventHeader": common_header(
-                "stndDefined", "Registration", device["name"],
-                "10SF-stndDefined-o1NotifyPnfRegistration"
-            ),
-            "stndDefinedFields": {
-                "stndDefinedFieldsVersion": "1.0",
-                "vendorName": device["vendor"],
-                "registrationStatus": "REGISTERED"
+            "commonEventHeader": {
+                "domain": "notification",
+                "eventId": f"notif-{current_time_ms}-{_NOTIFICATION_SEQUENCE_COUNT}",
+                "eventName": f"notification_Notification_Fields",
+                "eventType": "Notification_Fields",
+                "sequence": _NOTIFICATION_SEQUENCE_COUNT,
+                "priority": "Low",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "vesEventListenerVersion": "7.2.1"
+            },
+            "notificationFields": {
+                "notificationFieldsVersion": "2.0",
+                "changeContact": device_name,
+                "changeIdentifier": pnf_id,
+                "changeType": change_type,
+                "newState": new_state,
+                "oldState": old_state,
+                "stateInterface": "N1",
+                "additionalFields": {
+                    "eventTime": iso_time
+                }
             }
         }
     }
+    
+    _NOTIFICATION_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, f"Notification Status ({change_type})")
 
-
-def stnd_threshold_alert_event(device=None):
+def pnf_registration_event(device=None):
+    global _PNF_REG_SEQUENCE_COUNT
     device = device or get_device()
+    
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    model = device.get("model", "Model-X")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
+    serial = device.get("serialNumber", "SN-UNKNOWN")
+    sw_ver = device.get("softwareVersion", "1.0.0")
+    ip_addr = device.get("ip", "127.0.0.1")
+    
+    manufacture_date = "2026-01-16"
+    last_service_date = "2026-03-26"
+    mac_address = f"00:0A:95:{random.randint(10,99)}:{random.randint(10,99)}:{random.randint(10,99)}"
 
-    return {
+    event_payload = {
         "event": {
-            "commonEventHeader": common_header(
-                "stndDefined", "Threshold", device["name"],
-                "R2D2-TCA-CONT-thresholdCrossingAlert"
-            ),
-            "stndDefinedFields": {
-                "stndDefinedFieldsVersion": "1.0",
-                "measurementName": "CPU_Usage",
-                "measurementValue": round(random.uniform(91, 99), 2),
-                "threshold": 90,
-                "eventSeverity": "MAJOR"
+            "commonEventHeader": {
+                "domain": "pnfRegistration",
+                "eventId": f"pnfreg-{current_time_ms}-{_PNF_REG_SEQUENCE_COUNT}",
+                "eventName": f"pnfRegistration_PNF_Registration",
+                "eventType": "PNF_Registration",
+                "sequence": _PNF_REG_SEQUENCE_COUNT,
+                "priority": "Low",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "vesEventListenerVersion": "7.2.1"
+            },
+            "pnfRegistrationFields": {
+                "pnfRegistrationFieldsVersion": "2.1",
+                "lastServiceDate": last_service_date,
+                "macAddress": mac_address,
+                "manufactureDate": manufacture_date,
+                "modelNumber": model,
+                "oamV4IpAddress": ip_addr,
+                "oamV6IpAddress": f"2001:db8::{random.randint(1,99)}",
+                "serialNumber": f"{vendor}-{equip_type}-{serial}",
+                "softwareVersion": sw_ver,
+                "unitFamily": f"{vendor}-{equip_type}",
+                "unitType": equip_type,
+                "vendorName": vendor,
+                "additionalFields": {
+                    "oamPort": "830",
+                    "protocol": "SSH",
+                    "username": "netconf",
+                    "password": "netconf-password!",
+                    "reconnectOnChangedSchema": "false",
+                    "sleep-factor": "1.5",
+                    "tcpOnly": "false",
+                    "connectionTimeout": "20000",
+                    "maxConnectionAttempts": "100",
+                    "betweenAttemptsTimeout": "2000",
+                    "keepaliveDelay": "120"
+                }
             }
         }
     }
+    
+    _PNF_REG_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, "PNF Registration Profile")
 
-
-def stnd_threshold_clear_event(device=None):
+def state_change_event(device=None):
+    global _STATE_CHANGE_SEQUENCE_COUNT
     device = device or get_device()
+    
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
+    
+    new_state = random.choice(["inService", "active", "normal"])
+    old_state = random.choice(["maintenance", "standby", "offline"])
 
-    return {
+    event_payload = {
         "event": {
-            "commonEventHeader": common_header(
-                "stndDefined", "Threshold", device["name"],
-                "R2D2-TCA-MINOR-cleared"
-            ),
-            "stndDefinedFields": {
-                "stndDefinedFieldsVersion": "1.0",
-                "measurementName": "CPU_Usage",
-                "measurementValue": round(random.uniform(20, 60), 2),
-                "threshold": 90,
-                "eventSeverity": "NORMAL"
+            "commonEventHeader": {
+                "domain": "stateChange",
+                "eventId": f"state-{current_time_ms}-{_STATE_CHANGE_SEQUENCE_COUNT}",
+                "eventName": f"stateChange_State_Fields",
+                "eventType": "State_Fields",
+                "sequence": _STATE_CHANGE_SEQUENCE_COUNT,
+                "priority": "Low",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "vesEventListenerVersion": "7.2.1"
+            },
+            "stateChangeFields": {
+                "stateChangeFieldsVersion": "4.0",
+                "newState": new_state,
+                "oldState": old_state,
+                "stateInterface": "N1",
+                "additionalFields": {
+                    "eventTime": iso_time
+                }
             }
         }
     }
+    
+    _STATE_CHANGE_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, f"State Transition ({old_state} -> {new_state})")
 
+def stnd_defined_heartbeat_event(device=None):
+    global _STND_HB_SEQUENCE_COUNT
+    device = device or get_device()
+    
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
+    serial = device.get("serialNumber", "SN-UNKNOWN")
 
-EVENT_GENERATORS = [
-    heartbeat_event,
-    fault_event,
-    notification_event,
-    state_change_event,
-    threshold_event,
-    pnf_registration_event,
-    stnd_file_ready_event,
-    stnd_o1_registration_event,
-    stnd_threshold_alert_event,
-    stnd_threshold_clear_event
-]
+    event_payload = {
+        "event": {
+            "commonEventHeader": {
+                "domain": "stndDefined",
+                "eventId": f"stnd-hb-{current_time_ms}-{_STND_HB_SEQUENCE_COUNT}",
+                "eventName": f"stndDefined_heartbeat_heartbeat",
+                "eventType": "heartbeat_heartbeat",
+                "sequence": _STND_HB_SEQUENCE_COUNT,
+                "priority": "Low",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "stndDefinedNamespace": "3GPP-Heartbeat",
+                "vesEventListenerVersion": "7.2.1"
+            },
+            "stndDefinedFields": {
+                "schemaReference": "https://forge.3gpp.org/rep/sa5/MnS/raw/Rel-16/OpenAPI/TS28532_HeartbeatNtf.yaml#components/schemas/NotifyHeartbeat",
+                "data": {
+                    "href": f"https://{device_name.lower()}.domain/3gpp-management/v1/heartbeat",
+                    "notificationId": _STND_HB_SEQUENCE_COUNT,
+                    "notificationType": "notifyHeartbeat",
+                    "eventTime": iso_time,
+                    "systemDN": f"SubNetwork=RAN,MeContext={device_name},ManagedElement={serial}",
+                    "heartbeatNtfPeriod": 120
+                },
+                "stndDefinedFieldsVersion": "1.0"
+            }
+        }
+    }
+    
+    _STND_HB_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, "Standard-Defined 3GPP Heartbeat")
 
+def stnd_defined_notify_cleared_alarm_event(device=None):
+    global _STND_FAULT_SEQUENCE_COUNT
+    device = device or get_device()
+    
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
+    serial = device.get("serialNumber", "SN-UNKNOWN")
+    
+    alarm = random.choice(["LinkDown", "HighCpuUsage", "BgpNeighborLoss"])
+    severity = random.choice(["WARNING", "MINOR", "MAJOR", "CRITICAL"])
 
-def post_event(event):
-    domain = event["event"]["commonEventHeader"]["domain"]
-    source = event["event"]["commonEventHeader"]["sourceName"]
+    event_payload = {
+        "event": {
+            "commonEventHeader": {
+                "domain": "stndDefined",
+                "eventId": f"stnd-fault-{current_time_ms}-{_STND_FAULT_SEQUENCE_COUNT}",
+                "eventName": f"stndDefined_faultsupervision_cleared_{alarm.lower()}",
+                "eventType": "faultsupervision_cleared",
+                "sequence": _STND_FAULT_SEQUENCE_COUNT,
+                "priority": "Low",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "stndDefinedNamespace": "3GPP-FaultSupervision",
+                "vesEventListenerVersion": "7.2.1"
+            },
+            "stndDefinedFields": {
+                "schemaReference": "https://forge.3gpp.org/rep/sa5/MnS/raw/Rel-16/OpenAPI/TS28532_FaultMnS.yaml#components/schemas/NotifyClearedAlarm",
+                "data": {
+                    "href": f"https://{device_name.lower()}.domain/3gpp-management/v1/faults/{_STND_FAULT_SEQUENCE_COUNT}",
+                    "notificationId": _STND_FAULT_SEQUENCE_COUNT,
+                    "notificationType": "notifyClearedAlarm",
+                    "eventTime": iso_time,
+                    "systemDN": f"SubNetwork=RAN,MeContext={device_name},ManagedElement={serial}",
+                    "alarmId": f"alarm-{alarm}-{_STND_FAULT_SEQUENCE_COUNT}",
+                    "alarmType": "COMMUNICATIONS_ALARM",
+                    "probableCause": alarm,
+                    "perceivedSeverity": severity,
+                    "clearUserId": vendor,
+                    "clearSystemId": vendor
+                },
+                "stndDefinedFieldsVersion": "1.0"
+            }
+        }
+    }
+    
+    _STND_FAULT_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, f"Standard-Defined 3GPP Cleared Alarm ({alarm})")
 
+def stnd_defined_notify_file_ready_event(device=None):
+    global _STND_FILE_SEQUENCE_COUNT
+    device = device or get_device()
+    
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
+    serial = device.get("serialNumber", "SN-UNKNOWN")
+    
+    start_window = time.strftime("%Y%m%d.%H%M", time.gmtime(time.time() - 900))
+    end_window = time.strftime("%H%M", time.gmtime())
+
+    event_payload = {
+        "event": {
+            "commonEventHeader": {
+                "domain": "stndDefined",
+                "eventId": f"stnd-file-{current_time_ms}-{_STND_FILE_SEQUENCE_COUNT}",
+                "eventName": f"stndDefined_fileready_pm_export",
+                "eventType": "fileready_pm_export",
+                "sequence": _STND_FILE_SEQUENCE_COUNT,
+                "priority": "Low",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "stndDefinedNamespace": "file-ready",
+                "vesEventListenerVersion": "7.2.1"
+            },
+            "stndDefinedFields": {
+                "schemaReference": "https://forge.3gpp.org/rep/sa5/MnS/raw/Rel-16/OpenAPI/TS28532_FileDataReportingMnS.yaml#components/schemas/NotifyFileReady",
+                "data": {
+                    "href": f"https://{device_name.lower()}.domain/3gpp-management/v1/files/{_STND_FILE_SEQUENCE_COUNT}",
+                    "notificationId": _STND_FILE_SEQUENCE_COUNT,
+                    "notificationType": "notifyFileReady",
+                    "eventTime": iso_time,
+                    "systemDN": f"SubNetwork=RAN,MeContext={device_name},ManagedElement={serial}",
+                    "fileInfoList": [
+                        {
+                            "fileLocation": f"/pm-data-files/A{start_window}-{end_window}_{pnf_id}.xml",
+                            "fileSize": random.randint(1000, 5000),
+                            "fileReadyTime": iso_time,
+                            "fileExpirationTime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 86400)),
+                            "fileCompression": "no",
+                            "fileFormat": "xml",
+                            "fileDataType": "Performance"
+                        }
+                    ],
+                    "additionalText": "O-RAN Software Community OAM Performance Upload"
+                },
+                "stndDefinedFieldsVersion": "1.0"
+            }
+        }
+    }
+    
+    _STND_FILE_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, "Standard-Defined 3GPP File Ready Notification")
+
+def stnd_defined_notify_new_alarm_event(device=None):
+    global _STND_NEW_ALARM_SEQUENCE_COUNT
+    device = device or get_device()
+    
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    model = device.get("model", "Model-X")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
+    serial = device.get("serialNumber", "SN-UNKNOWN")
+    
+    alarm = random.choice(["ThresholdCrossingAlert", "InterfaceAnomaly", "LossOfSignal"])
+    severity = random.choice(["WARNING", "MINOR", "MAJOR", "CRITICAL"])
+
+    event_payload = {
+        "event": {
+            "commonEventHeader": {
+                "domain": "stndDefined",
+                "eventId": f"stnd-new-alarm-{current_time_ms}-{_STND_NEW_ALARM_SEQUENCE_COUNT}",
+                "eventName": f"stndDefined_faultsupervision_thresholdcrossingalert_{alarm.lower()}",
+                "eventType": "faultsupervision_thresholdcrossingalert",
+                "sequence": _STND_NEW_ALARM_SEQUENCE_COUNT,
+                "priority": "High" if severity in ["MAJOR", "CRITICAL"] else "Low",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "stndDefinedNamespace": "3GPP-FaultSupervision",
+                "vesEventListenerVersion": "7.2.1"
+            },
+            "stndDefinedFields": {
+                "schemaReference": "https://forge.3gpp.org/rep/sa5/MnS/raw/Rel-16/OpenAPI/TS28532_FaultMnS.yaml#components/schemas/NotifyNewAlarm",
+                "data": {
+                    "href": f"https://{device_name.lower()}.domain/3gpp-management/v1/faults/active/{_STND_NEW_ALARM_SEQUENCE_COUNT}",
+                    "notificationId": _STND_NEW_ALARM_SEQUENCE_COUNT,
+                    "notificationType": "notifyNewAlarm",
+                    "eventTime": iso_time,
+                    "systemDN": f"SubNetwork=RAN,MeContext={device_name},ManagedElement={serial}",
+                    "alarmId": f"alarm-{alarm}-{_STND_NEW_ALARM_SEQUENCE_COUNT}",
+                    "alarmType": "COMMUNICATIONS_ALARM",
+                    "probableCause": alarm,
+                    "specificProblem": f"Performance threshold limit violated for {alarm}",
+                    "perceivedSeverity": severity,
+                    "backedUpStatus": False,
+                    "backUpObject": "xyz",
+                    "trendIndication": "MORE_SEVERE",
+                    "thresholdInfo": {
+                        "observedMeasurement": "packetLossRate",
+                        "observedValue": round(random.uniform(0.05, 15.5), 2)
+                    },
+                    "correlatedNotifications": [],
+                    "stateChangeDefinition": [
+                        {
+                            "operational-state": "DISABLED"
+                        }
+                    ],
+                    "monitoredAttributes": {
+                        "interface": "eth0"
+                    },
+                    "proposedRepairActions": "Check physical layer transmission link or verify DU scheduling profile routing bounds.",
+                    "additionalText": "O-RAN Software Community OAM Core Agent Monitoring Engine",
+                    "additionalInformation": {
+                        "eventTime": iso_time,
+                        "equipType": equip_type,
+                        "vendor": vendor,
+                        "model": model
+                    },
+                    "rootCauseIndicator": True
+                },
+                "stndDefinedFieldsVersion": "1.0"
+            }
+        }
+    }
+    
+    _STND_NEW_ALARM_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, f"Standard-Defined 3GPP New Alarm Notification ({alarm})")
+
+def threshold_crossing_alert_event(device=None):
+    global _TCA_SEQUENCE_COUNT
+    device = device or get_device()
+    
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    model = device.get("model", "Model-X")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
+    
+    metric = random.choice(["packetLoss", "latencyAnomaly", "jitterThresholdExceeded"])
+    severity = random.choice(["WARNING", "MAJOR", "CRITICAL"])
+
+    event_payload = {
+        "event": {
+            "commonEventHeader": {
+                "domain": "thresholdCrossingAlert",
+                "eventId": f"tca-{current_time_ms}-{_TCA_SEQUENCE_COUNT}",
+                "eventName": f"thresholdCrossingAlert_{equip_type}_TCA_{metric}",
+                "eventType": f"{equip_type}_TCA",
+                "sequence": _TCA_SEQUENCE_COUNT,
+                "priority": "High" if severity == "CRITICAL" else "Medium",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "vesEventListenerVersion": "7.2.1"
+            },
+            "thresholdCrossingAlertFields": {
+                "thresholdCrossingFieldsVersion": "4.0",
+                "additionalParameters": [
+                    {
+                        "criticality": "MAJ" if severity in ["MAJOR", "CRITICAL"] else "MIN",
+                        "hashMap": {
+                            "additionalProperties": "up-and-down",
+                            "observedValue": str(round(random.uniform(5.5, 95.2), 2))
+                        },
+                        "thresholdCrossed": metric
+                    }
+                ],
+                "alertAction": "CLEAR" if random.choice([True, False]) else "SET",
+                "alertDescription": f"Performance telemetry metrics crossing alert parameter limits for field: {metric}",
+                "alertType": "INTERFACE-ANOMALY",
+                "alertValue": equip_type,
+                "associatedAlertIdList": ["loss-of-signal", f"tca-internal-{_TCA_SEQUENCE_COUNT}"],
+                "collectionTimestamp": iso_time,
+                "dataCollector": "data-lake",
+                "elementType": equip_type,
+                "eventSeverity": severity,
+                "eventStartTimestamp": iso_time,
+                "interfaceName": "GigabitEthernet0/1",
+                "networkService": "from-a-to-b",
+                "possibleRootCause": "Interface utilization saturation or queue exhaustion",
+                "additionalFields": {
+                    "eventTime": iso_time,
+                    "equipType": equip_type,
+                    "vendor": vendor,
+                    "model": model
+                }
+            }
+        }
+    }
+    
+    _TCA_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, f"Threshold Crossing Alert ({metric})")
+
+def stnd_defined_pnf_registration_event(device=None):
+    global _STND_PNF_REG_SEQUENCE_COUNT
+    device = device or get_device()
+    
+    current_time_ms = int(time.time() * 1000)
+    timestamp_str = str(current_time_ms * 1000)
+    iso_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    device_name = device.get("name", "Unknown-Device")
+    vendor = device.get("vendor", "Generic-Vendor")
+    equip_type = device.get("type", "O-RU")
+    model = device.get("model", "Model-X")
+    pnf_id = device.get("pnfId", f"pnf-{device_name}")
+    serial = device.get("serialNumber", "SN-UNKNOWN")
+    sw_ver = device.get("softwareVersion", "1.0.0")
+    ip_addr = device.get("ip", "127.0.0.1")
+    
+    manufacture_date = "2026-01-16"
+    last_service_date = "2026-03-26"
+    mac_address = f"00:0A:95:{random.randint(10,99)}:{random.randint(10,99)}:{random.randint(10,99)}"
+
+    event_payload = {
+        "event": {
+            "commonEventHeader": {
+                "domain": "stndDefined",
+                "eventId": f"stnd-pnfreg-{current_time_ms}-{_STND_PNF_REG_SEQUENCE_COUNT}",
+                "eventName": "stndDefined_pnfregistration_notifyPNFRegistration",
+                "eventType": "pnfregistration_notifyPNFRegistration",
+                "sequence": _STND_PNF_REG_SEQUENCE_COUNT,
+                "priority": "Low",
+                "reportingEntityId": f"ctrl-{device_name}",
+                "reportingEntityName": device_name,
+                "sourceId": pnf_id,
+                "sourceName": pnf_id,
+                "startEpochMicrosec": timestamp_str,
+                "lastEpochMicrosec": timestamp_str,
+                "nfNamingCode": equip_type[:3].upper(),
+                "nfVendorName": vendor,
+                "timeZoneOffset": "+00:00",
+                "version": "4.1",
+                "stndDefinedNamespace": "O1-Provisioning",
+                "vesEventListenerVersion": "7.2.1"
+            },
+            "stndDefinedFields": {
+                "schemaReference": "https://forge.3gpp.org/rep/sa5/MnS/raw/Rel-16/OpenAPI/TS28532_ProvMnS.yaml#components/schemas/NotifyPnfRegistration",
+                "stndDefinedFieldsVersion": "1.0",
+                "data": {
+                    "object-class": "ManagedElement",
+                    "object-instance": f"SubNetwork=RAN,MeContext={device_name},ManagedElement={serial}",
+                    "notification-identifier": f"notif-id-{_STND_PNF_REG_SEQUENCE_COUNT}",
+                    "notification-type": "notifyPNFRegistration",
+                    "event-time": iso_time,
+                    "system": "O1-OAM",
+                    "o1-specification-version": "1.0.0",
+                    "vendor-pen": str(random.randint(1000, 9999)),
+                    "vendor-name": vendor,
+                    "oam-host": ip_addr,
+                    "oam-port": 830,
+                    "unit-family": f"{vendor}-{equip_type}",
+                    "unit-type": equip_type,
+                    "restart-reason": "PowerCycle",
+                    "serial-number": f"{vendor}-{equip_type}-{serial}",
+                    "macAddress": mac_address,
+                    "modelNumber": model,
+                    "softwareVersion": sw_ver,
+                    "manufactureDate": manufacture_date,
+                    "lastServiceDate": last_service_date,
+                    "transport-protocol": "SSH",
+                    "username": "netconf",
+                    "password": "netconf-password!",
+                    "reconnect-on-changed-schema": "false",
+                    "sleep-factor": "1.5",
+                    "tcpOnly": "false",
+                    "connection-timeout": "20000",
+                    "max-connection-attempts": "100",
+                    "between-attempts-timeout": "2000",
+                    "keepalive-delay": "120"
+                }
+            }
+        }
+    }
+    
+    _STND_PNF_REG_SEQUENCE_COUNT += 1
+    return send_to_ves(event_payload, "Standard-Defined 3GPP PNF Registration")
+
+def send_to_ves(payload: dict, event_description: str) -> dict:
+    """Utility method to handle the REST HTTP connection logic securely."""
+    print(f"Connecting to collector at {VES_URL} ...")
     try:
-        response = requests.post(
-            VES_URL,
-            json=event,
-            timeout=5
-        )
-        print("BODY:", response.text)
+        response = requests.post(VES_URL, json=payload, timeout=5)
+        print(f"HTTP Status Code: {response.status_code}")
+        print(f"Collector Response: {response.text}")
+        response.raise_for_status()
+        print(f"Successfully posted {event_description} to VES.")
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to deliver {event_description} payload to VES collector: {e}")
+    return payload
 
-        print(
-            f"[{datetime.now().strftime('%H:%M:%S')}] "
-            f"{domain:<15} "
-            f"{source:<10} "
-            f"Status={response.status_code}"
-        )
-
-    except Exception as e:
-        print(f"ERROR: {e}")
-
-
-def register_all_devices():
-    """Send a pnfRegistration event for every simulated device so the
-    dashboard's Devices panel shows vendor/model/serial immediately,
-    instead of waiting for a random pnfRegistration event to land."""
-
-    print(f"Registering {len(NETWORK_FUNCTIONS)} devices...")
-
-    for device in NETWORK_FUNCTIONS:
-        post_event(pnf_registration_event(device))
-        time.sleep(0.05)
-
-
-def send_event():
-    device = get_device()
-    generator = random.choice(EVENT_GENERATORS)
-    payload = generator(device)
-    post_event(payload)
-
-
+# --- SEQUENTIAL EXECUTION ENGINE ---
 if __name__ == "__main__":
-    print("Starting VES Traffic Generator...")
-    print(f"Target: {VES_URL}")
-    print(f"Simulated PM files written to: {PM_FILE_DIR}")
+    print("Starting Multi-Domain VES Sequential Tester...")
+    print("Firing exactly ONE event of EVERY type back-to-back:\n")
+    
+    all_event_types = [
+        ("Fault", fault_event),
+        ("Heartbeat", heartbeat_event),
+        ("Notification", notification_event),
+        ("PNF Registration", pnf_registration_event),
+        ("State Change", state_change_event),
+        ("StndDefined 3GPP Heartbeat", stnd_defined_heartbeat_event),
+        ("StndDefined 3GPP Cleared Alarm", stnd_defined_notify_cleared_alarm_event),
+        ("StndDefined 3GPP File Ready", stnd_defined_notify_file_ready_event),
+        ("StndDefined 3GPP New Alarm", stnd_defined_notify_new_alarm_event),
+        ("Threshold Crossing Alert (TCA)", threshold_crossing_alert_event),
+        ("StndDefined PNF Registration", stnd_defined_pnf_registration_event)
+    ]
+    
+    test_device = get_device()
+    print(f"Using Target Node Profile: {test_device['name']} ({test_device['vendor']})\n")
 
-    register_all_devices()
-
-    while True:
-        send_event()
-
-        time.sleep(
-            random.uniform(0.1, 0.5)
-        )
+    for index, (label, event_function) in enumerate(all_event_types, 1):
+        print(f"=== [Step {index}/11] Sending Schema Vector: {label} ===")
+        event_function(device=test_device)
+        print("-" * 60)
+        time.sleep(1)
+        
+    print("All 11 distinct VES test packages dispatched sequentially.")
