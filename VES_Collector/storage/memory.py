@@ -16,8 +16,17 @@ FILE_STORE: List[Dict[str, Any]] = []
 
 PNF_STORE: List[Dict[str, Any]] = []
 
-PNF_FORWARD_CONFIG = {
-    "host": os.getenv("PNF_FORWARD_HOST", "127.0.0.1"),
-    "port": int(os.getenv("PNF_FORWARD_PORT", "9001")),
-    "path": os.getenv("PNF_FORWARD_PATH", "/pnfRegistration"),
+# PNF_FORWARD_CONFIG = {
+#     "host": os.getenv("PNF_FORWARD_HOST", "127.0.0.1"),
+#     "port": int(os.getenv("PNF_FORWARD_PORT", "9001")),
+#     "path": os.getenv("PNF_FORWARD_PATH", "/pnfRegistration"),
+# }
+
+NETCONF_FORWARD_CONFIG = {
+    "host": os.getenv("NETCONF_HOST"),
+    "port": int(os.getenv("NETCONF_PORT", "830")),
+    "username": os.getenv("NETCONF_USERNAME"),
+    "password": os.getenv("NETCONF_PASSWORD"),
+    "key_filename": "/home/archon/.ssh/id_ed25519"
+
 }

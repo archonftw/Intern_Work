@@ -245,60 +245,52 @@
 
       </section>
 
-      <!-- ============================================================
-           EVENT EXPLORER VIEW (Full-Height Resolution)
-           ============================================================ -->
-      <section class="view-panel" id="view-explorer" style="height: calc(100vh - 100px); margin: 0; padding: 0;">
+      <section class="view-panel" id="view-explorer">
 
-        <div class="main-grid" style="align-items: stretch; height: 100%; grid-template-columns: 350px 1fr; gap: 1rem;">
+        <div class="main-grid" style="align-items:start;">
 
-          <!-- Left Details Panel: Matches height perfectly -->
-          <div class="panel details" style="height: 100%; display: flex; flex-direction: column; margin: 0; overflow: hidden;">
-            <h3>Event Details</h3>
-            <pre id="eventDetails" style="flex: 1; margin: 0; background: #0b0f14; padding: 1rem; border-radius: 4px; overflow-y: auto; font-family: monospace; font-size: 12px; color: #cbd5e1; border: 1px solid #1e293b;">Select an event from the table &mdash; this panel stays in view as you scroll, no matter which row you pick.</pre>
+        <div class="panel details" style="position:sticky; top:1rem; max-height:calc(100vh - 2rem); overflow-y:auto;">
+          <h3>Event Details</h3>
+          <pre id="eventDetails">Select an event from the table &mdash; this panel stays in view as you scroll, no matter which row you pick.</pre>
+        </div>
+
+        <div class="panel">
+          <h3>Event Explorer</h3>
+          <div class="controls">
+            <input id="searchBox" placeholder="Search Event ID or Source">
+            <select id="domainFilter">
+              <option value="">All Domains</option>
+              <option value="fault">fault</option>
+              <option value="heartbeat">heartbeat</option>
+              <option value="notification">notification</option>
+              <option value="stateChange">stateChange</option>
+              <option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
+              <option value="pnfRegistration">pnfRegistration</option>
+              <option value="stndDefined">stndDefined</option>
+            </select>
+            <select id="deviceFilter"><option value="">All Devices</option></select>
+            <button class="btn" id="exportCsvBtn">Export CSV</button>
           </div>
 
-          <!-- Right Interactive Table Panel: Extends layout entirely -->
-          <div class="panel" style="height: 100%; display: flex; flex-direction: column; margin: 0; overflow: hidden;">
-            <h3>Event Explorer</h3>
-            
-            <div class="controls" style="flex-shrink: 0; margin-bottom: 1rem;">
-              <input id="searchBox" placeholder="Search Event ID or Source">
-              <select id="domainFilter">
-                <option value="">All Domains</option>
-                <option value="fault">fault</option>
-                <option value="heartbeat">heartbeat</option>
-                <option value="notification">notification</option>
-                <option value="stateChange">stateChange</option>
-                <option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
-                <option value="pnfRegistration">pnfRegistration</option>
-                <option value="stndDefined">stndDefined</option>
-              </select>
-              <select id="deviceFilter"><option value="">All Devices</option></select>
-              <button class="btn" id="exportCsvBtn">Export CSV</button>
-            </div>
-
-            <!-- Scroll wrapper captures remaining viewport depth -->
-            <div class="table-scroll" style="flex: 1; overflow-y: auto; min-height: 0; border: 1px solid #1e293b; border-radius: 4px;">
-              <table style="width: 100%; border-collapse: collapse;">
-                <thead style="position: sticky; top: 0; background: #10151c; z-index: 2; box-shadow: 0 1px 0 #1e293b;">
-                  <tr>
-                    <th data-sort="receivedAt">Time <span class="sort-arrow"></span></th>
-                    <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
-                    <th data-sort="eventId">Event ID <span class="sort-arrow"></span></th>
-                    <th data-sort="sourceName">Source <span class="sort-arrow"></span></th>
-                    <th data-sort="priority">Priority <span class="sort-arrow"></span></th>
-                  </tr>
-                </thead>
-                <tbody id="eventsTable"></tbody>
-              </table>
-            </div>
-
-            <div class="table-foot" style="flex-shrink: 0; margin-top: 0.5rem; display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
-              <span id="explorerCount">0 events shown</span>
-              <span>Buffer holds last 200 events (backend limit)</span>
-            </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th data-sort="receivedAt">Time <span class="sort-arrow"></span></th>
+                  <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
+                  <th data-sort="eventId">Event ID <span class="sort-arrow"></span></th>
+                  <th data-sort="sourceName">Source <span class="sort-arrow"></span></th>
+                  <th data-sort="priority">Priority <span class="sort-arrow"></span></th>
+                </tr>
+              </thead>
+              <tbody id="eventsTable"></tbody>
+            </table>
           </div>
+          <div class="table-foot">
+            <span id="explorerCount">0 events shown</span>
+            <span>Buffer holds last 200 events (backend limit)</span>
+          </div>
+        </div>
 
         </div>
 
@@ -354,11 +346,19 @@
         </div>
         <div>
           <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Forward Port</label>
-          <input type="text" id="pnfForwardPort" style="width:100%;" placeholder="e.g. 8443">
+          <input type="text" id="pnfForwardPort" style="width:100%;" placeholder="e.g. 830">
         </div>
         <div>
-          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Forward Path</label>
-          <input type="text" id="pnfForwardPath" style="width:100%;" placeholder="e.g. /api/v1/pnfs">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">NETCONF Username</label>
+          <input type="text" id="pnfForwardUsername" style="width:100%;" placeholder="e.g. archon">
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">SSH Private Key Path</label>
+          <input type="text" id="pnfForwardKeyFilename" style="width:100%;" placeholder="e.g. /home/archon/.ssh/id_ed25519">
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Key Passphrase (optional)</label>
+          <input type="password" id="pnfForwardKeyPassphrase" style="width:100%;" placeholder="Leave blank if key has no passphrase">
         </div>
       </div>
       <div class="modal-actions" style="display:flex; justify-content:flex-end;">
@@ -916,7 +916,9 @@ document.getElementById('configurePnfForwardBtn').addEventListener('click', asyn
   try { cfg = await safeFetch('/api/pnf/config'); } catch(e) { /* fall back to blank fields */ }
   document.getElementById('pnfForwardHost').value = cfg.host || '';
   document.getElementById('pnfForwardPort').value = cfg.port || '';
-  document.getElementById('pnfForwardPath').value = cfg.path || '';
+  document.getElementById('pnfForwardUsername').value = cfg.username || '';
+  document.getElementById('pnfForwardKeyFilename').value = cfg.key_filename || '';
+  document.getElementById('pnfForwardKeyPassphrase').value = ''; // never returned by the backend, left blank on open
   document.getElementById('pnfModalBackdrop').classList.add('open');
 });
 
@@ -930,13 +932,15 @@ document.getElementById('pnfModalBackdrop').addEventListener('click', (e) => {
 document.getElementById('savePnfConfigBtn').addEventListener('click', async () => {
   const host = document.getElementById('pnfForwardHost').value;
   const port = document.getElementById('pnfForwardPort').value;
-  const path = document.getElementById('pnfForwardPath').value;
+  const username = document.getElementById('pnfForwardUsername').value;
+  const key_filename = document.getElementById('pnfForwardKeyFilename').value;
+  const key_passphrase = document.getElementById('pnfForwardKeyPassphrase').value;
 
   try {
     const response = await fetch('/api/pnf/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, path })
+      body: JSON.stringify({ host, port, username, key_filename, key_passphrase })
     });
     if (response.ok) {
       document.getElementById('pnfModalBackdrop').classList.remove('open');

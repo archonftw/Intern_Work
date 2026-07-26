@@ -57,7 +57,8 @@ def search():
 
 @pnf_bp.route("/api/pnf/config", methods=["GET"])
 def config():
-
+    # get_forward_config() already strips password before returning —
+    # see pnf_service.py's get_forward_config()
     return jsonify(get_forward_config())
 
 
@@ -77,14 +78,19 @@ def update_config():
     else:
         port = None
 
+    # NETCONF forwarding authenticates via SSH private key, not
+    # password — key_filename is the path to the private key on disk;
+    # key_passphrase is only needed if that key itself is passphrase-
+    # protected.
     config = update_forward_config(
         host=body.get("host"),
         port=port,
-        path=body.get("path")
+        username=body.get("username"),
+        key_filename=body.get("key_filename"),
     )
 
     return jsonify({
-        "message": "PNF forwarding configuration updated.",
+        "message": "PNF NETCONF forwarding configuration updated.",
         "config": config
     })
 

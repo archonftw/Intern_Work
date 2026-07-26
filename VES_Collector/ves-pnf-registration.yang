@@ -1,0 +1,61 @@
+module ves-pnf-registration {
+  yang-version 1.1;
+  namespace "urn:ves:pnf-registration";
+  prefix vpnf;
+
+  organization "VES Collector NOC Console";
+  description
+    "Custom YANG model for storing PNF registration records
+     forwarded from the VES Collector to a NETCONF/sysrepo target.";
+
+  revision 2026-07-21 {
+    description "Initial revision.";
+  }
+
+  list pnf {
+    key "serial-number";
+    description "A single PNF registration record.";
+
+    leaf serial-number {
+      type string;
+      description "Unique serial number of the PNF. Used as the list key.";
+    }
+
+    leaf vendor-name {
+      type string;
+    }
+
+    leaf unit-type {
+      type string;
+    }
+
+    leaf unit-family {
+      type string;
+    }
+
+    leaf model-number {
+      type string;
+    }
+
+    leaf software-version {
+      type string;
+    }
+
+    leaf oam-v4-ip-address {
+      type string;
+    }
+
+    leaf protocol {
+      type string;
+    }
+
+    leaf username {
+      type string;
+    }
+
+    leaf received-time {
+      type string;
+      description "ISO 8601 UTC timestamp of when the collector received this registration.";
+    }
+  }
+}
