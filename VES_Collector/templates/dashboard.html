@@ -36,7 +36,7 @@
         <p class="view-title" id="viewTitle">Overview</p>
         <p class="view-subtitle" id="viewSubtitle">Live network event summary</p>
       </div>
-      <input class="global-search" id="globalSearch" placeholder="Search events or devices &middot; press /">
+      <input class="global-search" id="globalSearch" placeholder="Search events or devices &middot; press /" autocomplete="off">
       <span class="topbar-clock" id="clock">--:--:--</span>
     </div>
 
@@ -89,7 +89,7 @@
           <div class="alarm-summary-strip" id="alarmSummaryStrip"></div>
 
           <div class="controls">
-            <input id="alarmSearch" placeholder="Search device, condition, or domain &middot; space-separate multiple terms">
+            <input id="alarmSearch" placeholder="Search device, condition, or domain &middot; space-separate multiple terms" autocomplete="off">
             <select id="alarmDomainFilter">
               <option value="">All Domains</option>
               <option value="fault">fault</option>
@@ -143,7 +143,7 @@
         <div class="panel">
           <h3>Devices <span class="count-pill" id="devicesCountPill">0 connected</span></h3>
           <div class="controls">
-            <input id="deviceSearch" placeholder="Search device ID, vendor, or model">
+            <input id="deviceSearch" placeholder="Search device ID, vendor, or model" autocomplete="off">
             <select id="deviceStatusFilter">
               <option value="">All Statuses</option>
               <option value="live">Live</option>
@@ -170,7 +170,7 @@
           <p class="panel-note">Every registered PNF is forwarded automatically to the destination below as soon as it's received &mdash; this panel only controls where forwarded records are sent, not whether forwarding happens.</p>
 
           <div class="controls">
-            <input id="pnfSearch" placeholder="Search PNF name, vendor, or IP address">
+            <input id="pnfSearch" placeholder="Search PNF name, vendor, or IP address" autocomplete="off">
             <select id="pnfVendorFilter">
               <option value="">All Vendors</option>
             </select>
@@ -198,7 +198,7 @@
           <p class="panel-note">Files announced via fileReady (stndDefined) events. fileLocation points to the network function's file server &mdash; content is fetched on demand when you click Preview, not stored here.</p>
 
           <div class="controls">
-            <input id="fileSearch" placeholder="Search source, location, format, or File ID">
+            <input id="fileSearch" placeholder="Search source, location, format, or File ID" autocomplete="off">
             <select id="fileFormatFilter">
               <option value="">All Formats</option>
             </select>
@@ -230,7 +230,7 @@
           <p class="panel-note">Events under the stndDefined domain, grouped by resolved notification type (new alarm, cleared alarm, file-ready, PNF registration). Grouping mirrors the same detection logic the backend uses to dispatch these events.</p>
 
           <div class="controls">
-            <input id="stndSearch" placeholder="Search device or event name">
+            <input id="stndSearch" placeholder="Search device or event name" autocomplete="off">
             <select id="stndTypeFilter">
               <option value="">All Types</option>
               <option value="notifyNewAlarm">New Alarm</option>
@@ -257,7 +257,7 @@
         <div class="panel">
           <h3>Event Explorer</h3>
           <div class="controls">
-            <input id="searchBox" placeholder="Search Event ID or Source">
+            <input id="searchBox" placeholder="Search Event ID or Source" autocomplete="off">
             <select id="domainFilter">
               <option value="">All Domains</option>
               <option value="fault">fault</option>
@@ -342,23 +342,23 @@
       <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem;">
         <div>
           <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Forward Host</label>
-          <input type="text" id="pnfForwardHost" style="width:100%;" placeholder="e.g. 10.0.0.1">
+          <input type="text" id="pnfForwardHost" style="width:100%;" placeholder="e.g. 10.0.0.1" autocomplete="off">
         </div>
         <div>
           <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Forward Port</label>
-          <input type="text" id="pnfForwardPort" style="width:100%;" placeholder="e.g. 830">
+          <input type="text" id="pnfForwardPort" style="width:100%;" placeholder="e.g. 830" autocomplete="off">
         </div>
         <div>
           <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">NETCONF Username</label>
-          <input type="text" id="pnfForwardUsername" style="width:100%;" placeholder="e.g. archon">
+          <input type="text" id="pnfForwardUsername" style="width:100%;" placeholder="e.g. archon" autocomplete="off">
         </div>
         <div>
           <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">SSH Private Key Path</label>
-          <input type="text" id="pnfForwardKeyFilename" style="width:100%;" placeholder="e.g. /home/archon/.ssh/id_ed25519">
+          <input type="text" id="pnfForwardKeyFilename" style="width:100%;" placeholder="e.g. /home/archon/.ssh/id_ed25519" autocomplete="off">
         </div>
         <div>
           <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Key Passphrase (optional)</label>
-          <input type="password" id="pnfForwardKeyPassphrase" style="width:100%;" placeholder="Leave blank if key has no passphrase">
+          <input type="password" id="pnfForwardKeyPassphrase" style="width:100%;" placeholder="Leave blank if key has no passphrase" autocomplete="off">
         </div>
       </div>
       <div class="modal-actions" style="display:flex; justify-content:flex-end;">
@@ -569,7 +569,7 @@ function renderEvents(){
    table.innerHTML = rows.map(event=>`
      <tr data-id="${event.collectorId}">
        <td>${event.receivedAt||'-'}</td>
-       <td><span class="badge ${event.domain}">${event.domain}</span></td>
+       <td><span class="badge ${event.domain}">${event.domain}</span>${explorerDomainSubTag(event)}</td>
        <td>${event.eventId||'-'}</td>
        <td>${event.sourceName||'-'}</td>
        <td>${event.priority||'-'}</td>
@@ -1125,6 +1125,17 @@ function resolveStndType(e){
   if(eventName.includes('notifypnfregistration')) return 'notifyPNFRegistration';
   if(eventName.includes('thresholdcrossingalert')) return 'notifyNewAlarm';
   return 'unknown';
+}
+
+// Small inline tag shown next to the domain badge in Event Explorer,
+// so stndDefined rows show which sub-type they resolved to (New Alarm,
+// Cleared Alarm, File Ready, PNF Registration) instead of all looking
+// identical under one generic "stndDefined" badge. No-op for other domains.
+function explorerDomainSubTag(event){
+  if(event.domain !== 'stndDefined') return '';
+  const type = resolveStndType(event);
+  const label = STND_TYPE_LABELS[type] || 'Unknown';
+  return ` <span class="count-pill" style="font-size:10px; padding:2px 6px; margin-left:4px; vertical-align:middle;">${label}</span>`;
 }
 
 function renderStnd(){
