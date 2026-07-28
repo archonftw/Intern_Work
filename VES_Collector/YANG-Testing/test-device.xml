@@ -1,6 +1,0 @@
-<config>
-  <device xmlns="urn:test:device">
-    <name>VES-PNF-01</name>
-    <status>online</status>
-  </device>
-</config>
