@@ -682,3 +682,85 @@ table th:nth-child(5), table td:nth-child(5){ width:12%; }
   overflow-x: auto;   /* Gracefully scrolls horizontally on smaller windows */
   width: 100%;
 }
+/* Installed Modules List Container */
+.cm-module-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Make the entire module row a clickable button */
+.cm-module-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: var(--bg-surface, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 8px;
+  color: var(--text-main, #f8fafc);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  text-align: left;
+}
+
+.cm-module-card:hover {
+  background-color: var(--bg-hover, #334155);
+  border-color: #38edf8;
+  transform: translateY(-1px);
+}
+
+.cm-module-card.pinned {
+  border-left: 4px solid #38edf8;
+  background-color: rgba(56, 237, 248, 0.05);
+}
+
+.cm-module-card.active-selected {
+  border-color: #38edf8;
+  box-shadow: 0 0 10px rgba(56, 237, 248, 0.2);
+}
+
+/* Left side content inside module button */
+.cm-module-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex-grow: 1;
+}
+
+.cm-module-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #f8fafc;
+}
+
+.cm-module-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+/* Pin Action Button */
+.cm-pin-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 1rem;
+  padding: 0.4rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.2s, background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cm-pin-btn:hover {
+  color: #38edf8;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.cm-pin-btn.is-pinned {
+  color: #38edf8;
+}

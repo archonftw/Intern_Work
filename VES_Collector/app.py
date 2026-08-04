@@ -7,6 +7,8 @@ from routes.dashboard import dashboard_bp
 from routes.filereferences import filereferences_bp
 from routes.pnf import pnf_bp
 from services.file_ready_service import is_file_ready_event, process_file_ready
+from routes.cm import cm_bp
+from routes.config import config_bp
 
 app = Flask(
     __name__,
@@ -21,8 +23,8 @@ app.register_blueprint(stats_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(filereferences_bp)
 app.register_blueprint(pnf_bp)
-
-
+app.register_blueprint(cm_bp)
+app.register_blueprint(config_bp)
 if __name__ == "__main__":
 
     app.run(

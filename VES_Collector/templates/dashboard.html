@@ -6,6 +6,92 @@
 <title>VES Collector NOC Console</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+/* ============================================================
+   Updated CM Module List & Pinning Custom Styles
+   ============================================================ */
+.cm-module-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Full-width clickable module button card */
+.cm-module-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: var(--bg-surface, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 8px;
+  color: var(--text-main, #f8fafc);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.cm-module-card:hover {
+  background-color: var(--bg-hover, #334155);
+  border-color: #38edf8;
+  transform: translateY(-1px);
+}
+
+.cm-module-card.pinned {
+  border-left: 4px solid #38edf8;
+  background-color: rgba(56, 237, 248, 0.05);
+}
+
+.cm-module-card.active-selected {
+  border-color: #38edf8;
+  box-shadow: 0 0 10px rgba(56, 237, 248, 0.2);
+}
+
+.cm-module-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex-grow: 1;
+}
+
+.cm-module-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #f8fafc;
+}
+
+.cm-module-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+/* Pin Action Button */
+.cm-pin-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.2s, background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cm-pin-btn:hover {
+  color: #38edf8;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.cm-pin-btn.is-pinned {
+  color: #38edf8;
+}
+</style>
 </head>
 <body>
 
@@ -18,6 +104,13 @@
     </div>
     <div class="conn-status" id="connStatus">CONNECTED</div>
     <ul class="nav-list">
+      <li>
+        <button class="nav-item" data-view="cm">
+          <span class="nav-icon">&#9881;</span>
+          <span class="nav-label">Configuration</span>
+          <span class="nav-badge" id="navCmBadge">0</span>
+        </button>
+      </li>
       <li><button class="nav-item active" data-view="overview"><span class="nav-icon">&#9635;</span><span class="nav-label">Overview</span></button></li>
       <li><button class="nav-item" data-view="alarms"><span class="nav-icon">&#9650;</span><span class="nav-label">Alarms</span><span class="nav-badge alert" id="navAlarmBadge">0</span></button></li>
       <li><button class="nav-item" data-view="devices"><span class="nav-icon">&#9637;</span><span class="nav-label">Devices</span><span class="nav-badge" id="navDeviceBadge">0</span></button></li>
@@ -189,6 +282,121 @@
           </div>
         </div>
 
+      </section>
+
+      <!-- Updated Configuration Management (CM) Section -->
+      <section class="view-panel" id="view-cm">
+        <div class="panel">
+          
+          <!-- Header Toolbar -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color, #2d3748); padding-bottom: 0.75rem;">
+            <div>
+              <h3 style="display: inline-flex; align-items: center; gap: 0.5rem; margin: 0;">
+                Configuration Management
+                <span class="count-pill bad" id="cmStatus">Disconnected</span>
+              </h3>
+              <p class="panel-note" style="margin: 0.25rem 0 0;">
+                Live NETCONF datastore editor powered by Netopeer2 &amp; Sysrepo.
+              </p>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <label style="font-size: 12px; color: var(--text-muted);">Active Target:</label>
+              <select id="cmDeviceSelect" style="font-size: 12px; padding: 4px 8px;">
+                <option value="">No Session Active</option>
+              </select>
+              <button class="btn small" id="cmRefreshBtn">&#x21BB; Refresh</button>
+            </div>
+          </div>
+
+          <!-- Controls Row -->
+          <div class="controls" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;">
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <label style="font-size: 12px; color: var(--text-muted);">Datastore:</label>
+              <select id="cmDatastore">
+                <option value="running">Running</option>
+                <option value="candidate" selected>Candidate</option>
+                <option value="startup">Startup</option>
+              </select>
+
+              <label style="font-size: 12px; color: var(--text-muted); margin-left: 0.5rem;">YANG Module:</label>
+              <select id="cmModuleSelect">
+                <option value="">All Modules (Full Config)</option>
+              </select>
+
+              <button class="btn primary" id="cmGetConfigBtn">Get Config</button>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <!-- Editor Mode Switcher -->
+              <div style="display: inline-flex; border: 1px solid var(--border-color, #2d3748); border-radius: 4px; overflow: hidden; margin-right: 0.5rem;">
+                <button class="btn small primary" id="cmToggleTreeModeBtn" style="border-radius:0;">Tree View</button>
+                <button class="btn small" id="cmToggleRawModeBtn" style="border-radius:0;">Raw XML</button>
+              </div>
+
+              <button class="btn small" id="cmExpandAllBtn" title="Expand/Collapse Tree">Toggle Expand</button>
+              <button class="btn" id="cmValidateBtn" title="Validate payload against Netopeer2 YANG schemas">Validate</button>
+              <button class="btn" id="cmDiscardBtn" title="Revert uncommitted edits in candidate">Discard</button>
+              <button class="btn primary" id="cmSaveConfigBtn" disabled>Apply Edits</button>
+              <button class="btn alert" id="cmCommitBtn" title="Commit candidate to running">Commit to Live</button>
+            </div>
+          </div>
+
+          <!-- Main Workspace Grid with Increased Modules Width (360px) -->
+          <div class="main-grid" style="grid-template-columns: 360px 1fr; gap: 1rem; margin-top: 1rem; align-items: start;">
+            
+            <!-- Left: Full-Width Clickable Installed YANG Modules Browser with Pin Support -->
+            <div class="panel" style="padding: 0.75rem; margin: 0; width: 100%; box-sizing: border-box;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                <h4 style="margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">
+                  Installed YANG Modules
+                </h4>
+                <span id="cmModuleCount" class="count-pill">0 Loaded</span>
+              </div>
+
+              <div id="cmModuleList" class="cm-module-list" style="max-height: 540px; overflow-y: auto; padding-right: 4px;">
+                <div style="padding: 1rem; text-align: center; color: var(--text-muted);">
+                  No modules loaded. Connect a NETCONF device to inspect modules.
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Interactive Hierarchy & Raw Code Workspace -->
+            <div class="panel" style="padding: 0.75rem; margin: 0; display: flex; flex-direction: column;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <h4 style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);" id="cmEditorTitle">
+                  Interactive Hierarchy Tree Editor
+                </h4>
+                <span class="count-pill" id="cmEditorStatePill">Read-Only</span>
+              </div>
+
+              <!-- 1. Hierarchical Tree Editor Container -->
+              <div 
+                id="cmTreeContainer" 
+                style="width: 100%; height: 500px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.6; background: #0b0f19; color: #38edf8; border: 1px solid var(--border-color, #2d3748); border-radius: 4px; padding: 12px; overflow: auto; box-sizing: border-box;"
+              >
+                <div style="color: var(--text-muted); font-style: italic; text-align: center; padding-top: 40px;">
+                  Click "Get Config" or select a module to render the hierarchical configuration tree...
+                </div>
+              </div>
+
+              <!-- 2. Raw XML Code Fallback Area (Hidden in Tree Mode) -->
+              <textarea 
+                id="cmConfigOutput" 
+                spellcheck="false" 
+                style="display: none; width: 100%; height: 500px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.5; background: #0b0f19; color: #38edf8; border: 1px solid var(--border-color, #2d3748); border-radius: 4px; padding: 12px; resize: vertical; box-sizing: border-box;"
+                placeholder="Select a module or click 'Get Config' to fetch the Netopeer2 XML datastore..."
+              ></textarea>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; font-size: 11px; color: var(--text-muted);">
+                <span id="cmEditorStatus">Ready</span>
+                <span>Click <strong style="color:var(--text-main, #38edf8);">[ + ]</strong> to expand tags, edit node values directly inline</span>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
       </section>
 
       <section class="view-panel" id="view-files">
@@ -387,13 +595,14 @@ let firstLoad = true;
 let selectedEventId = null;
 
 const VIEW_META = {
-  overview:  { title:'Overview',        subtitle:'Live network event summary' },
-  alarms:    { title:'Alarms',          subtitle:'Correlated fault & threshold conditions' },
-  devices:   { title:'Devices',         subtitle:'All reporting network functions' },
-  pnf:       { title:'PNF Registration',subtitle:'Registered Physical Network Functions' },
-  files:     { title:'Files',           subtitle:'fileReady references from stndDefined events' },
-  stnd:      { title:'STND Defined',    subtitle:'Standard-defined notifications grouped by type' },
-  explorer:  { title:'Event Explorer',  subtitle:'Raw event stream, searchable & sortable' },
+  cm:       { title:'Configuration Management', subtitle:'NETCONF device configuration' },
+  overview: { title:'Overview',                 subtitle:'Live network event summary' },
+  alarms:   { title:'Alarms',                   subtitle:'Correlated fault & threshold conditions' },
+  devices:  { title:'Devices',                  subtitle:'All reporting network functions' },
+  pnf:      { title:'PNF Registration',         subtitle:'Registered Physical Network Functions' },
+  files:    { title:'Files',                    subtitle:'fileReady references from stndDefined events' },
+  stnd:     { title:'STND Defined',             subtitle:'Standard-defined notifications grouped by type' },
+  explorer: { title:'Event Explorer',           subtitle:'Raw event stream, searchable & sortable' },
 };
 
 /* ============================================================
@@ -408,6 +617,7 @@ function switchView(view){
   document.getElementById('viewSubtitle').textContent = VIEW_META[view].subtitle;
   document.getElementById('sidebar').classList.remove('open');
 
+  if(view==='cm') loadCM();
   if(view==='pnf') renderPNFs();
   if(view==='stnd') renderStnd();
 }
@@ -441,39 +651,605 @@ document.getElementById('globalSearch').addEventListener('input', (e)=>{
   renderDevices();
   renderPNFs();
 });
+
 function tickClock(){
   document.getElementById('clock').textContent = new Date().toLocaleTimeString();
 }
 setInterval(tickClock, 1000);
 tickClock();
 
-
-
 async function loadStats(){
- let stats;
- try{ stats = await safeFetch('/api/stats'); } catch(e){ return; }
+  let stats;
+  try{ stats = await safeFetch('/api/stats'); } catch(e){ return; }
 
- ['totalEvents','faultEvents','heartbeatEvents','notificationEvents',
-  'stateChangeEvents','thresholdEvents','pnfRegistrationEvents','stndDefinedEvents'
- ].forEach(k=>{
-    const el=document.getElementById(k);
-    if(el) el.innerText=stats[k]||0;
- });
+  ['totalEvents','faultEvents','heartbeatEvents','notificationEvents',
+   'stateChangeEvents','thresholdEvents','pnfRegistrationEvents','stndDefinedEvents'
+  ].forEach(k=>{
+     const el=document.getElementById(k);
+     if(el) el.innerText=stats[k]||0;
+  });
 
- const data=[
-   stats.faultEvents||0, stats.heartbeatEvents||0,
-   stats.notificationEvents||0, stats.stateChangeEvents||0, stats.thresholdEvents||0,
-   stats.pnfRegistrationEvents||0, stats.stndDefinedEvents||0
- ];
+  const data=[
+    stats.faultEvents||0, stats.heartbeatEvents||0,
+    stats.notificationEvents||0, stats.stateChangeEvents||0, stats.thresholdEvents||0,
+    stats.pnfRegistrationEvents||0, stats.stndDefinedEvents||0
+  ];
 
- if(!chartInitialized){
-    createDomainChart(data);
-    chartInitialized = true;
- } else {
-    domainChart.data.datasets[0].data = data;
-    domainChart.update();
- }
+  if(!chartInitialized){
+     createDomainChart(data);
+     chartInitialized = true;
+  } else {
+     domainChart.data.datasets[0].data = data;
+     domainChart.update();
+  }
 }
+
+/* ============================================================
+   Configuration Management (CM) Module State & Pinning Management
+   ============================================================ */
+let activeCmDevice = null;
+let isCmDirty = false;
+let currentCmViewMode = 'tree'; // 'tree' or 'raw'
+let activeXmlDoc = null;
+let pinnedModules = JSON.parse(localStorage.getItem('cm_pinned_modules') || '[]');
+let currentCmModules = [];
+
+function togglePinModule(event, moduleName) {
+  event.stopPropagation(); // Prevent launching module view when toggling pin
+
+  if (pinnedModules.includes(moduleName)) {
+    pinnedModules = pinnedModules.filter(m => m !== moduleName);
+  } else {
+    pinnedModules.push(moduleName);
+  }
+
+  localStorage.setItem('cm_pinned_modules', JSON.stringify(pinnedModules));
+  renderCmModules(currentCmModules);
+}
+
+function renderCmModules(modules) {
+  currentCmModules = modules || [];
+  const container = document.getElementById('cmModuleList');
+  const countBadge = document.getElementById('cmModuleCount');
+
+  if (!container) return;
+
+  if (countBadge) {
+    countBadge.textContent = `${currentCmModules.length} Loaded`;
+  }
+
+  if (!currentCmModules || currentCmModules.length === 0) {
+    container.innerHTML = `
+      <div style="padding: 1rem; text-align: center; color: var(--text-muted);">
+        No active modules found on Netopeer2.
+      </div>`;
+    return;
+  }
+
+  // Sort pinned modules first, then alphabetically
+  const sortedModules = [...currentCmModules].sort((a, b) => {
+    const aPinned = pinnedModules.includes(a.name);
+    const bPinned = pinnedModules.includes(b.name);
+
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  container.innerHTML = sortedModules.map(mod => {
+    const isPinned = pinnedModules.includes(mod.name);
+    
+    return `
+      <div 
+        class="cm-module-card ${isPinned ? 'pinned' : ''}" 
+        onclick="selectCmModule('${mod.name}')"
+        title="Click to view configuration for ${mod.name}"
+      >
+        <div class="cm-module-info">
+          <div class="cm-module-name">
+            ${isPinned ? '📌 ' : ''}${mod.name}
+          </div>
+          <div class="cm-module-meta">
+            Rev: ${mod.revision || 'N/A'} &nbsp;|&nbsp; ${mod.capability || 'Standard'}
+          </div>
+        </div>
+
+        <button 
+          class="cm-pin-btn ${isPinned ? 'is-pinned' : ''}" 
+          onclick="togglePinModule(event, '${mod.name}')" 
+          title="${isPinned ? 'Unpin module' : 'Pin module to top'}"
+        >
+          ${isPinned ? '★ Unpin' : '☆ Pin'}
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+function selectCmModule(moduleName) {
+  const moduleSelect = document.getElementById('cmModuleSelect');
+  if (moduleSelect) {
+    moduleSelect.value = moduleName;
+  }
+
+  document.querySelectorAll('.cm-module-card').forEach(card => {
+    card.classList.remove('active-selected');
+  });
+
+  fetchCmConfig(moduleName);
+}
+
+async function loadCM() {
+  const statusPill = document.getElementById('cmStatus');
+  const deviceSelect = document.getElementById('cmDeviceSelect');
+  const moduleSelect = document.getElementById('cmModuleSelect');
+
+  try {
+    let sessionRes = await safeFetch('/api/cm/sessions');
+    let devices = sessionRes.connected_devices || [];
+
+    // Auto-connect pnf002 if session dropped
+    if (devices.length === 0) {
+      statusPill.textContent = 'Connecting...';
+      statusPill.className = 'count-pill warn';
+
+      try {
+    const autoConnectRes = await safeFetch('/api/cm/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        device_id: "pnf002",
+        host: "127.0.0.1",
+        port: 830,
+        username: "archon",
+        key_filename: "/home/archon/.ssh/id_ed25519" // Updated to real key!
+      })
+    });
+
+    if (autoConnectRes.status === 'connected') {
+      sessionRes = await safeFetch('/api/cm/sessions');
+      devices = sessionRes.connected_devices || [];
+    }
+  } catch (autoErr) {
+    console.warn("Auto-connect attempt failed:", autoErr);
+  }
+    }
+
+    if (devices.length === 0) {
+      statusPill.textContent = 'Disconnected';
+      statusPill.className = 'count-pill bad';
+      return;
+    }
+
+    statusPill.textContent = 'Connected';
+    statusPill.className = 'count-pill good';
+
+    deviceSelect.innerHTML = devices.map(id => `<option value="${id}">${id}</option>`).join('');
+    if (!activeCmDevice || !devices.includes(activeCmDevice)) {
+      activeCmDevice = devices[0];
+    }
+    deviceSelect.value = activeCmDevice;
+
+    // Fetch installed modules list from Netopeer2 capabilities & datastore
+    const modules = await safeFetch(`/api/cm/modules?device_id=${encodeURIComponent(activeCmDevice)}`);
+
+    if (Array.isArray(modules) && modules.length > 0) {
+      moduleSelect.innerHTML = '<option value="">All Modules (Full Config)</option>' +
+        modules.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+
+      renderCmModules(modules);
+
+      // FORCE RETRIEVAL: Directly request ves-pnf-registration from Netopeer2 on view load
+      if (modules.some(m => m.name === 'ves-pnf-registration')) {
+        moduleSelect.value = 'ves-pnf-registration';
+        fetchCmConfig('ves-pnf-registration');
+        return;
+      }
+    }
+
+    // Fallback if ves-pnf-registration module isn't loaded
+    fetchCmConfig();
+
+  } catch (err) {
+    statusPill.textContent = 'Disconnected';
+    statusPill.className = 'count-pill bad';
+  }
+}
+
+async function fetchCmConfig(moduleName) {
+  const module = moduleName !== undefined ? moduleName : document.getElementById('cmModuleSelect').value;
+  const datastore = document.getElementById('cmDatastore').value;
+  const output = document.getElementById('cmConfigOutput');
+  const treeContainer = document.getElementById('cmTreeContainer');
+  const statusText = document.getElementById('cmEditorStatus');
+  const statePill = document.getElementById('cmEditorStatePill');
+  const saveBtn = document.getElementById('cmSaveConfigBtn');
+
+  if (!activeCmDevice) {
+    alert('No active NETCONF session selected.');
+    return;
+  }
+
+  treeContainer.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">Fetching hierarchy tree from Netopeer2...</div>';
+  output.value = 'Fetching configuration...';
+  statusText.textContent = `Loading ${module || 'full datastore'} (${datastore})...`;
+
+  try {
+    let url = `/api/cm/config?device_id=${encodeURIComponent(activeCmDevice)}&datastore=${encodeURIComponent(datastore)}`;
+    if (module) url += `&module=${encodeURIComponent(module)}`;
+
+    const res = await safeFetch(url);
+    const xmlText = res.config !== undefined ? res.config : res;
+
+    output.value = xmlText;
+
+    // Parse XML String into DOM Document
+    const parser = new DOMParser();
+    activeXmlDoc = parser.parseFromString(xmlText, "text/xml");
+
+    if (activeXmlDoc.getElementsByTagName("parsererror").length > 0) {
+      treeContainer.innerHTML = `<div style="color:#ff4d5e; padding:12px;">Failed to parse XML hierarchy tree. Showing Raw View instead.</div>`;
+      switchCmViewMode('raw');
+    } else {
+      renderXmlHierarchyTree(activeXmlDoc, treeContainer);
+    }
+
+    statusText.textContent = `Loaded ${module || 'full config'} (${datastore})`;
+    statePill.textContent = 'Editing Mode';
+    statePill.className = 'count-pill warn';
+    
+    saveBtn.disabled = false;
+    isCmDirty = false;
+  } catch (err) {
+    treeContainer.innerHTML = `<div style="color:#ff4d5e; padding:20px;">Error loading configuration: ${err.message}</div>`;
+    output.value = `<!-- Error: ${err.message || 'Server error'} -->`;
+    statusText.textContent = 'Error loading datastore';
+    saveBtn.disabled = true;
+  }
+}
+
+/* --- Hierarchical Tree Renderer & Interactive DOM Generator --- */
+function renderXmlHierarchyTree(xmlDoc, container) {
+  container.innerHTML = '';
+  const root = xmlDoc.documentElement;
+
+  if (!root) {
+    container.innerHTML = '<div style="color:var(--text-muted);">Empty Configuration Datastore</div>';
+    return;
+  }
+
+  const rootElement = createTreeNodeElement(root, true);
+  container.appendChild(rootElement);
+}
+
+function createTreeNodeElement(node, isRoot = false) {
+  const wrapper = document.createElement('div');
+  wrapper.style.marginLeft = isRoot ? '0px' : '16px';
+  wrapper.style.marginTop = '2px';
+
+  const elementChildren = Array.from(node.childNodes).filter(n => n.nodeType === 1);
+  const textContent = Array.from(node.childNodes)
+    .filter(n => n.nodeType === 3)
+    .map(n => n.nodeValue.trim())
+    .join('');
+
+  const hasChildren = elementChildren.length > 0;
+
+  // Tag Row
+  const row = document.createElement('div');
+  row.style.display = 'flex';
+  row.style.alignItems = 'center';
+  row.style.gap = '6px';
+
+  const toggleBtn = document.createElement('span');
+  toggleBtn.style.cursor = 'pointer';
+  toggleBtn.style.display = 'inline-block';
+  toggleBtn.style.width = '16px';
+  toggleBtn.style.textAlign = 'center';
+  toggleBtn.style.userSelect = 'none';
+  toggleBtn.style.fontWeight = 'bold';
+  toggleBtn.style.color = '#ffd23f';
+
+  if (hasChildren) {
+    toggleBtn.textContent = '+';
+  } else {
+    toggleBtn.textContent = '•';
+    toggleBtn.style.color = 'var(--text-muted, #8b96a6)';
+  }
+
+  const tagLabel = document.createElement('span');
+  tagLabel.style.color = '#ff9f43';
+  tagLabel.style.fontWeight = '600';
+  tagLabel.textContent = `<${node.tagName}>`;
+
+  row.appendChild(toggleBtn);
+  row.appendChild(tagLabel);
+
+  if (node.attributes && node.attributes.length > 0) {
+    for (let attr of node.attributes) {
+      const attrSpan = document.createElement('span');
+      attrSpan.style.color = '#9d8cff';
+      attrSpan.style.fontSize = '11px';
+      attrSpan.textContent = `${attr.name}="${attr.value}"`;
+      row.appendChild(attrSpan);
+    }
+  }
+
+  const childrenContainer = document.createElement('div');
+  childrenContainer.style.display = 'none';
+
+  if (hasChildren) {
+    elementChildren.forEach(child => {
+      childrenContainer.appendChild(createTreeNodeElement(child, false));
+    });
+
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isCollapsed = childrenContainer.style.display === 'none';
+      childrenContainer.style.display = isCollapsed ? 'block' : 'none';
+      toggleBtn.textContent = isCollapsed ? '-' : '+';
+    });
+  } else if (textContent !== '') {
+    const valueInput = document.createElement('input');
+    valueInput.type = 'text';
+    valueInput.value = textContent;
+    valueInput.style.background = '#10151c';
+    valueInput.style.color = '#34d399';
+    valueInput.style.border = '1px solid #2d3748';
+    valueInput.style.borderRadius = '3px';
+    valueInput.style.padding = '1px 6px';
+    valueInput.style.fontSize = '11px';
+    valueInput.style.fontFamily = 'inherit';
+    valueInput.style.width = Math.max(120, textContent.length * 8) + 'px';
+
+    valueInput.addEventListener('input', () => {
+      node.textContent = valueInput.value;
+      markCmAsDirty();
+    });
+
+    row.appendChild(valueInput);
+  }
+
+  wrapper.appendChild(row);
+  if (hasChildren) {
+    wrapper.appendChild(childrenContainer);
+  }
+
+  return wrapper;
+}
+
+/* --- Sync & Save Operations --- */
+function markCmAsDirty() {
+  isCmDirty = true;
+  const saveBtn = document.getElementById('cmSaveConfigBtn');
+  const statusText = document.getElementById('cmEditorStatus');
+  const statePill = document.getElementById('cmEditorStatePill');
+
+  if (saveBtn) saveBtn.disabled = false;
+  if (statusText) statusText.textContent = "Unsaved changes in hierarchy tree — click 'Apply Edits'";
+  if (statePill) {
+    statePill.textContent = "Modified (Unsaved)";
+    statePill.className = "count-pill warn";
+  }
+}
+
+function serializeTreeToXmlString() {
+  if (currentCmViewMode === 'raw') {
+    return document.getElementById('cmConfigOutput').value;
+  }
+  if (!activeXmlDoc) {
+    return document.getElementById('cmConfigOutput').value;
+  }
+  const serializer = new XMLSerializer();
+  return serializer.serializeToString(activeXmlDoc);
+}
+
+async function applyCmEdits() {
+  const datastore = document.getElementById('cmDatastore').value;
+  const configXml = serializeTreeToXmlString();
+  const statusText = document.getElementById('cmEditorStatus');
+  const statePill = document.getElementById('cmEditorStatePill');
+
+  if (!activeCmDevice) {
+    alert("Error: No active NETCONF device selected.");
+    return;
+  }
+
+  if (statusText) statusText.textContent = `Applying edits to '${datastore}'...`;
+
+  try {
+    const response = await fetch('/api/cm/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        device_id: activeCmDevice,
+        datastore: datastore,
+        config: configXml
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to apply edits');
+    }
+
+    if (statusText) statusText.textContent = `Successfully updated '${datastore}' datastore on server!`;
+    if (statePill) {
+      statePill.textContent = "Staged in Candidate";
+      statePill.className = "count-pill warn";
+    }
+
+    isCmDirty = false;
+    document.getElementById('cmSaveConfigBtn').disabled = true;
+
+    alert(`Success!\nEdits applied to '${datastore}' datastore on Netopeer2.\nNow click 'Validate' or 'Commit to Live'.`);
+  } catch (err) {
+    if (statusText) statusText.textContent = `Edit failed: ${err.message}`;
+    alert(`Netopeer2 Rejected Edit:\n${err.message}`);
+  }
+}
+
+async function validateCmConfig() {
+  const datastore = document.getElementById('cmDatastore').value;
+  const statusText = document.getElementById('cmEditorStatus');
+
+  if (!activeCmDevice) {
+    alert("Error: No active NETCONF device selected.");
+    return;
+  }
+
+  if (statusText) statusText.textContent = `Validating '${datastore}' against YANG schemas...`;
+
+  try {
+    const response = await fetch('/api/cm/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: activeCmDevice, datastore: datastore })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Validation failed');
+    }
+
+    if (statusText) statusText.textContent = `Validation Passed: Datastore '${datastore}' is 100% YANG compliant!`;
+
+    alert(`Validation Successful!\nDatastore '${datastore}' complies with all active YANG models on Netopeer2.`);
+  } catch (err) {
+    if (statusText) statusText.textContent = `Validation Error: ${err.message}`;
+    alert(`YANG Validation Error:\n${err.message}`);
+  }
+}
+
+async function commitCmConfig() {
+  const statusText = document.getElementById('cmEditorStatus');
+  const statePill = document.getElementById('cmEditorStatePill');
+
+  if (!activeCmDevice) {
+    alert("Error: No active NETCONF device selected.");
+    return;
+  }
+
+  if (!confirm(`Commit candidate datastore to live running configuration on ${activeCmDevice}?`)) {
+    return;
+  }
+
+  if (statusText) statusText.textContent = 'Committing candidate to live running configuration...';
+
+  try {
+    const response = await fetch('/api/cm/commit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: activeCmDevice })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Commit failed');
+    }
+
+    if (statusText) statusText.textContent = 'Commit Successful! Live configuration updated.';
+    if (statePill) {
+      statePill.textContent = "Live Running";
+      statePill.className = "count-pill good";
+    }
+
+    alert("Commit Successful!\nCandidate changes have been committed to live running configuration.");
+
+    fetchCmConfig();
+  } catch (err) {
+    if (statusText) statusText.textContent = `Commit Failed: ${err.message}`;
+    alert(`Commit Failed:\n${err.message}`);
+  }
+}
+
+async function discardCmEdits() {
+  const statusText = document.getElementById('cmEditorStatus');
+  if (!activeCmDevice) return;
+
+  if (statusText) statusText.textContent = 'Discarding candidate changes...';
+
+  try {
+    const response = await fetch('/api/cm/discard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: activeCmDevice })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Discard failed');
+    }
+
+    if (statusText) statusText.textContent = 'Candidate changes discarded.';
+    alert("Candidate datastore reverted to live running configuration.");
+    fetchCmConfig();
+  } catch (err) {
+    if (statusText) statusText.textContent = `Discard Failed: ${err.message}`;
+    alert(`Discard Failed: ${err.message}`);
+  }
+}
+
+/* --- Mode Switcher (Tree vs Raw) & Expand Helpers --- */
+function switchCmViewMode(mode) {
+  currentCmViewMode = mode;
+  const treeContainer = document.getElementById('cmTreeContainer');
+  const rawTextarea = document.getElementById('cmConfigOutput');
+  const treeBtn = document.getElementById('cmToggleTreeModeBtn');
+  const rawBtn = document.getElementById('cmToggleRawModeBtn');
+
+  if (mode === 'tree') {
+    treeContainer.style.display = 'block';
+    rawTextarea.style.display = 'none';
+    treeBtn.className = 'btn small primary';
+    rawBtn.className = 'btn small';
+  } else {
+    if (activeXmlDoc) {
+      rawTextarea.value = serializeTreeToXmlString();
+    }
+    treeContainer.style.display = 'none';
+    rawTextarea.style.display = 'block';
+    treeBtn.className = 'btn small';
+    rawBtn.className = 'btn small primary';
+  }
+}
+
+// Event Bindings
+document.getElementById('cmToggleTreeModeBtn').addEventListener('click', () => switchCmViewMode('tree'));
+document.getElementById('cmToggleRawModeBtn').addEventListener('click', () => switchCmViewMode('raw'));
+
+document.getElementById('cmExpandAllBtn').addEventListener('click', () => {
+  const containers = document.querySelectorAll('#cmTreeContainer div');
+  const isAnyHidden = Array.from(containers).some(c => c.style.display === 'none');
+  
+  containers.forEach(c => {
+    if (c.previousElementSibling && c.previousElementSibling.querySelector('span')) {
+      c.style.display = isAnyHidden ? 'block' : 'none';
+      const toggle = c.previousElementSibling.querySelector('span');
+      if (toggle && toggle.textContent !== '•') {
+        toggle.textContent = isAnyHidden ? '-' : '+';
+      }
+    }
+  });
+});
+
+document.getElementById('cmGetConfigBtn').addEventListener('click', () => fetchCmConfig());
+document.getElementById('cmSaveConfigBtn').addEventListener('click', applyCmEdits);
+document.getElementById('cmValidateBtn').addEventListener('click', validateCmConfig);
+document.getElementById('cmCommitBtn').addEventListener('click', commitCmConfig);
+document.getElementById('cmDiscardBtn').addEventListener('click', discardCmEdits);
+document.getElementById('cmRefreshBtn').addEventListener('click', loadCM);
+
+document.getElementById('cmDeviceSelect').addEventListener('change', (e) => {
+  activeCmDevice = e.target.value;
+  loadCM();
+});
+
+document.getElementById('cmConfigOutput').addEventListener('input', markCmAsDirty);
 
 function createDomainChart(data){
  const ctx=document.getElementById('domainChart');
@@ -610,6 +1386,7 @@ document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
 document.getElementById('searchBox').addEventListener('input',renderEvents);
 document.getElementById('domainFilter').addEventListener('change',renderEvents);
 document.getElementById('deviceFilter').addEventListener('change',renderEvents);
+
 async function loadDevices(){
  try{ cachedDevices = await safeFetch('/api/devices'); } catch(e){ return; }
  renderDevices();
@@ -638,13 +1415,12 @@ function deviceCardHtml(d){
 }
 
 function attachDeviceClicks(container){
-  container.querySelectorAll('.device-card').forEach(card=>{
-    card.addEventListener('click', ()=>openDeviceModal(card.dataset.id));
-  });
+ container.querySelectorAll('.device-card').forEach(card=>{
+   card.addEventListener('click', ()=>openDeviceModal(card.dataset.id));
+ });
 }
 
 function renderDevices(){
- // Overview preview (first 4, most recently seen)
  const sorted=[...cachedDevices].sort((a,b)=> new Date(b.lastSeen||0) - new Date(a.lastSeen||0));
  const overviewGrid=document.getElementById('overviewDeviceGrid');
  document.getElementById('overviewDevicePill').textContent = `${cachedDevices.length} connected`;
@@ -655,7 +1431,6 @@ function renderDevices(){
    attachDeviceClicks(overviewGrid);
  }
 
- // Full devices view (with filters)
  const search=(document.getElementById('deviceSearch').value||'').toLowerCase();
  const statusFilter=document.getElementById('deviceStatusFilter').value;
  const regFilter=document.getElementById('deviceRegFilter').value;
@@ -760,142 +1535,70 @@ async function loadPNFs() {
 function populatePnfVendorFilter() {
   const select = document.getElementById('pnfVendorFilter');
   const current = select.value;
-  // FIX: PNF records use "vendorName", not "vendor" — this dropdown
-  // was always empty because it was reading the wrong field.
   const vendors = [...new Set(cachedPNFs.map(p => p.vendorName).filter(Boolean))].sort();
   select.innerHTML = '<option value="">All Vendors</option>' + vendors.map(v => `<option value="${v}">${v}</option>`).join('');
   select.value = vendors.includes(current) ? current : '';
 }
 
 function renderPNFs() {
-
-  const search = (
-    document.getElementById('pnfSearch').value || ''
-  ).toLowerCase();
-
-  const vendorFilter =
-    document.getElementById('pnfVendorFilter').value;
-
+  const search = (document.getElementById('pnfSearch').value || '').toLowerCase();
+  const vendorFilter = document.getElementById('pnfVendorFilter').value;
 
   let rows = cachedPNFs.filter(p => {
-
     const vendor = p.vendorName || '';
     const name = p.unitType || '';
     const ip = p.oamV4IpAddress || '';
 
-    if(vendorFilter && vendor !== vendorFilter)
-      return false;
+    if(vendorFilter && vendor !== vendorFilter) return false;
 
-
-    const text =
-      (
-        vendor +
-        " " +
-        name +
-        " " +
-        ip +
-        " " +
-        (p.modelNumber || '')
-      ).toLowerCase();
-
-
-    if(search && !text.includes(search))
-      return false;
-
+    const text = (vendor + " " + name + " " + ip + " " + (p.modelNumber || '')).toLowerCase();
+    if(search && !text.includes(search)) return false;
 
     return true;
   });
 
-
-
-  document.getElementById('pnfCountPill').textContent =
-      `${cachedPNFs.length} registered`;
-
-
-  const table =
-      document.getElementById('pnfsTable');
-
+  document.getElementById('pnfCountPill').textContent = `${cachedPNFs.length} registered`;
+  const table = document.getElementById('pnfsTable');
 
   if(rows.length === 0){
-
-    table.innerHTML =
-    `
+    table.innerHTML = `
     <tr>
       <td colspan="9" class="empty-state">
         No PNF registration records found
       </td>
-    </tr>
-    `;
-
+    </tr>`;
     return;
   }
 
   table.innerHTML = rows.map(p => {
-
     return `
     <tr>
-
-      <td>
-        ${p.receivedTime || '-'}
-      </td>
-
-      <td>
-        <b>${p.unitType || '-'}</b>
-      </td>
-
-      <td>
-        ${p.vendorName || '-'}
-      </td>
-
-      <td>
-        ${p.modelNumber || '-'}
-      </td>
-
-      <td>
-        ${p.oamV4IpAddress || '-'}
-      </td>
-
-      <td>
-        <span class="badge heartbeat">
-          ${p.protocol || '-'}
-        </span>
-      </td>
-
-      <td>
-        ${p.username || '-'}
-      </td>
-
-      <td>
-        ${pnfForwardStatusHtml(p)}
-      </td>
-
+      <td>${p.receivedTime || '-'}</td>
+      <td><b>${p.unitType || '-'}</b></td>
+      <td>${p.vendorName || '-'}</td>
+      <td>${p.modelNumber || '-'}</td>
+      <td>${p.oamV4IpAddress || '-'}</td>
+      <td><span class="badge heartbeat">${p.protocol || '-'}</span></td>
+      <td>${p.username || '-'}</td>
+      <td>${pnfForwardStatusHtml(p)}</td>
       <td>
         ${p.forwarded === false
           ? `<button class="btn small primary pnf-retry-btn" data-oam="${p.oamV4IpAddress}">Retry</button>`
           : ''}
       </td>
-
-    </tr>
-    `;
-
+    </tr>`;
   }).join('');
 
-  // Retry only shows up for records that failed to forward automatically —
-  // there's no per-event "click to forward" action anymore since every
-  // event is forwarded automatically on ingestion.
   table.querySelectorAll('.pnf-retry-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       btn.disabled = true;
       btn.textContent = 'Retrying...';
       try {
         await fetch('/api/pnf/forward', { method: 'POST' });
-      } catch(e) {
-        // ignore, will just re-show as failed on next refresh
-      }
+      } catch(e) {}
       await loadPNFs();
     });
   });
-
 }
 
 function pnfForwardStatusHtml(p){
@@ -913,12 +1616,12 @@ document.getElementById('pnfVendorFilter').addEventListener('change', renderPNFs
 
 document.getElementById('configurePnfForwardBtn').addEventListener('click', async () => {
   let cfg = {};
-  try { cfg = await safeFetch('/api/pnf/config'); } catch(e) { /* fall back to blank fields */ }
+  try { cfg = await safeFetch('/api/pnf/config'); } catch(e) {}
   document.getElementById('pnfForwardHost').value = cfg.host || '';
   document.getElementById('pnfForwardPort').value = cfg.port || '';
   document.getElementById('pnfForwardUsername').value = cfg.username || '';
   document.getElementById('pnfForwardKeyFilename').value = cfg.key_filename || '';
-  document.getElementById('pnfForwardKeyPassphrase').value = ''; // never returned by the backend, left blank on open
+  document.getElementById('pnfForwardKeyPassphrase').value = '';
   document.getElementById('pnfModalBackdrop').classList.add('open');
 });
 
@@ -944,14 +1647,10 @@ document.getElementById('savePnfConfigBtn').addEventListener('click', async () =
     });
     if (response.ok) {
       document.getElementById('pnfModalBackdrop').classList.remove('open');
-      // Config just changed — sweep any records that previously failed
-      // (e.g. because no destination was set) and retry them now.
       try { await fetch('/api/pnf/forward', { method: 'POST' }); } catch(e) {}
       await loadPNFs();
     }
-  } catch(e) {
-    // Error feedback handling
-  }
+  } catch(e) {}
 });
 
 /* ============================================================
@@ -973,7 +1672,6 @@ function populateFileFormatFilter(){
  select.innerHTML='<option value="">All Formats</option>' + formats.map(f=>`<option value="${f}">${f}</option>`).join('');
  select.value = formats.includes(current) ? current : '';
 }
-
 
 function formatBytes(bytes){
  if(bytes===undefined || bytes===null) return '-';
@@ -1027,8 +1725,6 @@ function renderFiles(){
      });
    });
 
-   // FIX: wire up the Preview buttons — this listener never existed
-   // before, which is why clicking Preview did nothing.
    table.querySelectorAll('button[data-file-id]').forEach(btn => {
      btn.addEventListener('click', () => {
        openFilePreview(btn.dataset.fileId);
@@ -1036,12 +1732,8 @@ function renderFiles(){
    });
  }
 
- 
  document.getElementById('filesCount').textContent = `${rows.length} files shown`;
 }
-
-
-
 
 document.getElementById('fileSearch').addEventListener('input', renderFiles);
 document.getElementById('fileFormatFilter').addEventListener('change', renderFiles);
@@ -1114,8 +1806,6 @@ const STND_TYPE_LABELS = {
   unknown: 'Unknown'
 };
 
-// Mirrors process_stnd()'s dispatch order server-side, so grouping here
-// matches how the backend actually classified/handled the event.
 function resolveStndType(e){
   const eventName = (e.eventName || '').toLowerCase();
   const data = e.raw?.stndDefinedFields?.data || {};
@@ -1127,10 +1817,6 @@ function resolveStndType(e){
   return 'unknown';
 }
 
-// Small inline tag shown next to the domain badge in Event Explorer,
-// so stndDefined rows show which sub-type they resolved to (New Alarm,
-// Cleared Alarm, File Ready, PNF Registration) instead of all looking
-// identical under one generic "stndDefined" badge. No-op for other domains.
 function explorerDomainSubTag(event){
   if(event.domain !== 'stndDefined') return '';
   const type = resolveStndType(event);
@@ -1206,47 +1892,47 @@ function computeAlarmGroups(){
  const groups = {};
 
  cachedEvents.forEach(e=>{
-   const raw = e.raw || {};
-   let key=null, severity=null, condition=null, domain=e.domain;
+    const raw = e.raw || {};
+    let key=null, severity=null, condition=null, domain=e.domain;
 
-   if(e.domain==='fault'){
-     const ff = raw.faultFields || {};
-     condition = ff.alarmCondition || 'Unknown Condition';
-     severity = (ff.eventSeverity||'WARNING').toUpperCase();
-     key = `${e.sourceName}::fault::${condition}`;
-   } else if(e.domain==='stndDefined' && raw.stndDefinedFields?.measurementName){
-     const sf = raw.stndDefinedFields;
-     condition = sf.measurementName;
-     severity = (sf.eventSeverity||'MAJOR').toUpperCase();
-     if(severity==='NORMAL') severity='CLEARED';
-     key = `${e.sourceName}::stnd::${condition}`;
-   } else if(e.domain==='thresholdCrossingAlert'){
-     const tf = raw.thresholdCrossingAlertFields || {};
-     condition = tf.indicatorName || 'Threshold Breach';
-     severity = 'MAJOR';
-     key = `${e.sourceName}::tca::${condition}`;
-   } else {
-     return;
-   }
+    if(e.domain==='fault'){
+      const ff = raw.faultFields || {};
+      condition = ff.alarmCondition || 'Unknown Condition';
+      severity = (ff.eventSeverity||'WARNING').toUpperCase();
+      key = `${e.sourceName}::fault::${condition}`;
+    } else if(e.domain==='stndDefined' && raw.stndDefinedFields?.measurementName){
+      const sf = raw.stndDefinedFields;
+      condition = sf.measurementName;
+      severity = (sf.eventSeverity||'MAJOR').toUpperCase();
+      if(severity==='NORMAL') severity='CLEARED';
+      key = `${e.sourceName}::stnd::${condition}`;
+    } else if(e.domain==='thresholdCrossingAlert'){
+      const tf = raw.thresholdCrossingAlertFields || {};
+      condition = tf.indicatorName || 'Threshold Breach';
+      severity = 'MAJOR';
+      key = `${e.sourceName}::tca::${condition}`;
+    } else {
+      return;
+    }
 
-   if(!groups[key]){
-     groups[key] = {
-       key, device:e.sourceName, condition, domain,
-       severity, firstSeen:e.receivedAt, lastSeen:e.receivedAt, occurrences:0
-     };
-   }
-   const g = groups[key];
-   g.occurrences += 1;
-   if(e.receivedAt < g.firstSeen) g.firstSeen = e.receivedAt;
-   if(e.receivedAt >= g.lastSeen){ g.lastSeen = e.receivedAt; g.severity = severity; }
+    if(!groups[key]){
+      groups[key] = {
+        key, device:e.sourceName, condition, domain,
+        severity, firstSeen:e.receivedAt, lastSeen:e.receivedAt, occurrences:0
+      };
+    }
+    const g = groups[key];
+    g.occurrences += 1;
+    if(e.receivedAt < g.firstSeen) g.firstSeen = e.receivedAt;
+    if(e.receivedAt >= g.lastSeen){ g.lastSeen = e.receivedAt; g.severity = severity; }
  });
 
  return Object.values(groups).sort((a,b)=>{
-   if(a.severity==='CLEARED' && b.severity!=='CLEARED') return 1;
-   if(b.severity==='CLEARED' && a.severity!=='CLEARED') return -1;
-   const rd = severityRank(b.severity)-severityRank(a.severity);
-   if(rd!==0) return rd;
-   return new Date(b.lastSeen) - new Date(a.lastSeen);
+    if(a.severity==='CLEARED' && b.severity!=='CLEARED') return 1;
+    if(b.severity==='CLEARED' && a.severity!=='CLEARED') return -1;
+    const rd = severityRank(b.severity)-severityRank(a.severity);
+    if(rd!==0) return rd;
+    return new Date(b.lastSeen) - new Date(a.lastSeen);
  });
 }
 
@@ -1267,14 +1953,14 @@ function renderAlarmSummary(groups, stripId, pillId){
  active.forEach(g=>{ if(counts[g.severity]!==undefined) counts[g.severity]++; });
 
  if(pillId){
-   document.getElementById(pillId).textContent = `${active.length} open`;
+    document.getElementById(pillId).textContent = `${active.length} open`;
  }
 
  document.getElementById(stripId).innerHTML = `
-   <div class="alarm-summary-chip crit"><p>Critical</p><h4>${counts.CRITICAL}</h4></div>
-   <div class="alarm-summary-chip major"><p>Major</p><h4>${counts.MAJOR}</h4></div>
-   <div class="alarm-summary-chip warn"><p>Warning</p><h4>${counts.WARNING}</h4></div>
-   <div class="alarm-summary-chip ok"><p>Cleared</p><h4>${groups.length-active.length}</h4></div>
+    <div class="alarm-summary-chip crit"><p>Critical</p><h4>${counts.CRITICAL}</h4></div>
+    <div class="alarm-summary-chip major"><p>Major</p><h4>${counts.MAJOR}</h4></div>
+    <div class="alarm-summary-chip warn"><p>Warning</p><h4>${counts.WARNING}</h4></div>
+    <div class="alarm-summary-chip ok"><p>Cleared</p><h4>${groups.length-active.length}</h4></div>
  `;
 }
 
@@ -1292,77 +1978,74 @@ function renderAlarms(){
  const timeRangeFilter=document.getElementById('alarmTimeRangeFilter').value;
 
  let filtered = groups.filter(g=>{
-   const text=(g.device+' '+g.condition+' '+g.domain).toLowerCase();
-   if(searchTerms.length && !searchTerms.every(t=>text.includes(t))) return false;
-   if(domainFilter && g.domain!==domainFilter) return false;
-   if(sevFilter && g.severity!==sevFilter) return false;
-   if(!alarmWithinTimeRange(g.lastSeen, timeRangeFilter)) return false;
-   const acked = ackedAlarms.has(g.key);
-   if(ackFilter==='unacked' && acked) return false;
-   if(ackFilter==='acked' && !acked) return false;
-   return true;
+    const text=(g.device+' '+g.condition+' '+g.domain).toLowerCase();
+    if(searchTerms.length && !searchTerms.every(t=>text.includes(t))) return false;
+    if(domainFilter && g.domain!==domainFilter) return false;
+    if(sevFilter && g.severity!==sevFilter) return false;
+    if(!alarmWithinTimeRange(g.lastSeen, timeRangeFilter)) return false;
+    const acked = ackedAlarms.has(g.key);
+    if(ackFilter==='unacked' && acked) return false;
+    if(ackFilter==='acked' && !acked) return false;
+    return true;
  });
 
  document.querySelectorAll('#view-alarms thead th[data-sort]').forEach(th=>{
-   th.classList.toggle('sorted', th.dataset.sort===alarmSort.key);
-   th.querySelector('.sort-arrow').textContent = th.dataset.sort===alarmSort.key ? (alarmSort.dir==='asc'?'\u2191':'\u2193') : '';
+    th.classList.toggle('sorted', th.dataset.sort===alarmSort.key);
+    th.querySelector('.sort-arrow').textContent = th.dataset.sort===alarmSort.key ? (alarmSort.dir==='asc'?'\u2191':'\u2193') : '';
  });
 
  if(alarmSort.key){
-   filtered.sort((a,b)=>{
-     let av=a[alarmSort.key], bv=b[alarmSort.key];
-     if(alarmSort.key==='occurrences'){
-       av = av||0; bv = bv||0;
-     } else if(alarmSort.key==='firstSeen' || alarmSort.key==='lastSeen'){
-       av = new Date(av||0).getTime(); bv = new Date(bv||0).getTime();
-     } else if(alarmSort.key==='severity'){
-       av = severityRank(av); bv = severityRank(bv);
-     } else {
-       av = (av||'').toString().toLowerCase(); bv = (bv||'').toString().toLowerCase();
-     }
-     if(av<bv) return alarmSort.dir==='asc'?-1:1;
-     if(av>bv) return alarmSort.dir==='asc'?1:-1;
-     return 0;
-   });
+    filtered.sort((a,b)=>{
+      let av=a[alarmSort.key], bv=b[alarmSort.key];
+      if(alarmSort.key==='occurrences'){
+        av = av||0; bv = bv||0;
+      } else if(alarmSort.key==='firstSeen' || alarmSort.key==='lastSeen'){
+        av = new Date(av||0).getTime(); bv = new Date(bv||0).getTime();
+      } else if(alarmSort.key==='severity'){
+        av = severityRank(av); bv = severityRank(bv);
+      } else {
+        av = (av||'').toString().toLowerCase(); bv = (bv||'').toString().toLowerCase();
+      }
+      if(av<bv) return alarmSort.dir==='asc'?-1:1;
+      if(av>bv) return alarmSort.dir==='asc'?1:-1;
+      return 0;
+    });
  }
 
  const table=document.getElementById('alarmsTable');
  if(filtered.length===0){
-   table.innerHTML='<tr><td colspan="8" class="empty-state">No alarms match the current filters.</td></tr>';
+    table.innerHTML='<tr><td colspan="8" class="empty-state">No alarms match the current filters.</td></tr>';
  } else {
-   table.innerHTML = filtered.map(g=>{
-     const acked = ackedAlarms.has(g.key);
-     return `
-     <tr class="alarm-row ${g.severity} ${acked?'acked':''}" data-alarm-key="${g.key}" style="cursor:pointer;">
-       <td><span class="sev-chip ${g.severity}">${g.severity}</span></td>
-       <td>${g.device}</td>
-       <td>${g.condition}</td>
-       <td><span class="badge ${g.domain}">${g.domain}</span></td>
-       <td>${g.firstSeen}</td>
-       <td>${g.lastSeen}</td>
-       <td>${g.occurrences}</td>
-       <td><button class="btn small ${acked?'':'primary'}" data-key="${g.key}">${acked?'Unack':'Ack'}</button></td>
-     </tr>`;
-   }).join('');
+    table.innerHTML = filtered.map(g=>{
+      const acked = ackedAlarms.has(g.key);
+      return `
+      <tr class="alarm-row ${g.severity} ${acked?'acked':''}" data-alarm-key="${g.key}" style="cursor:pointer;">
+        <td><span class="sev-chip ${g.severity}">${g.severity}</span></td>
+        <td>${g.device}</td>
+        <td>${g.condition}</td>
+        <td><span class="badge ${g.domain}">${g.domain}</span></td>
+        <td>${g.firstSeen}</td>
+        <td>${g.lastSeen}</td>
+        <td>${g.occurrences}</td>
+        <td><button class="btn small ${acked?'':'primary'}" data-key="${g.key}">${acked?'Unack':'Ack'}</button></td>
+      </tr>`;
+    }).join('');
 
-   table.querySelectorAll('button[data-key]').forEach(btn=>{
-     btn.addEventListener('click', (ev)=>{
-       ev.stopPropagation();
-       const key=btn.dataset.key;
-       if(ackedAlarms.has(key)) ackedAlarms.delete(key); else ackedAlarms.add(key);
-       saveAcks();
-       renderAlarms();
-     });
-   });
+    table.querySelectorAll('button[data-key]').forEach(btn=>{
+      btn.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        const key=btn.dataset.key;
+        if(ackedAlarms.has(key)) ackedAlarms.delete(key); else ackedAlarms.add(key);
+        saveAcks();
+        renderAlarms();
+      });
+    });
 
-   // Click anywhere else on the row opens the full alarm detail modal.
-   // The Ack button's own listener calls stopPropagation() above, so
-   // clicking Ack won't also trigger the modal.
-   table.querySelectorAll('tr[data-alarm-key]').forEach(row=>{
-     row.addEventListener('click', ()=>{
-       openAlarmModal(row.dataset.alarmKey, groups);
-     });
-   });
+    table.querySelectorAll('tr[data-alarm-key]').forEach(row=>{
+      row.addEventListener('click', ()=>{
+        openAlarmModal(row.dataset.alarmKey, groups);
+      });
+    });
  }
 
  updateNavBadges(groups);
@@ -1388,10 +2071,6 @@ document.getElementById('clearAcksBtn').addEventListener('click', ()=>{
  renderAlarms();
 });
 
-// Finds every raw event that contributed to this alarm group, using the
-// same domain-specific matching logic computeAlarmGroups() used to build
-// the group in the first place, so the modal's event list agrees with the
-// group's own occurrence count.
 function findAlarmEvents(group){
   return cachedEvents.filter(e=>{
     if(e.sourceName !== group.device) return false;
@@ -1535,11 +2214,11 @@ async function refresh(){
  await loadDevices();
  await loadPNFs();
  await loadFiles();
+ if(currentView === 'cm') await loadCM();
+
  renderAlarms();
  renderStnd();
- if(currentView==='pnf') renderPNFs();
 }
-
 
 refresh();
 setInterval(refresh, 3000);
