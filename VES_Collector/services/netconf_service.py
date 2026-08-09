@@ -18,28 +18,33 @@ class NetconfManager:
         self.sessions = {}
         self.lock = Lock()
 
-    def connect(self, device_id, host, port, username, key_filename):
+    def connect(self, device_id, host, port, username, key_filename, key_passphrase=None):
         with self.lock:
             if device_id in self.sessions:
                 return {"status": "already_connected", "device_id": device_id}
 
-            session = manager.connect(
-                host=host,
-                port=port,
-                username=username,
-                password=None,
-                hostkey_verify=False,
-                look_for_keys=True,
-                allow_agent=True,
-                key_filename=key_filename,
-                timeout=10,
-                device_params={"name": "default"},
-            )
+            try:
+                # Pure SSH Key Authentication
+                session = manager.connect(
+                    host=host,
+                    port=int(port),
+                    username=username,
+                    password=key_passphrase,  # None for passwordless SSH keys
+                    hostkey_verify=False,
+                    look_for_keys=False,
+                    allow_agent=False,
+                    key_filename=key_filename,
+                    timeout=10,
+                    device_params={"name": "default"},
+                )
 
-            self.sessions[device_id] = session
-            LOGGER.info("NETCONF connected: %s", device_id)
-            return {"status": "connected", "session_id": session.session_id}
-
+                self.sessions[device_id] = session
+                LOGGER.info("NETCONF SSH key connected: %s (%s:%s)", device_id, host, port)
+                return {"status": "connected", "session_id": str(session.session_id)}
+            except Exception as exc:
+                LOGGER.error("NETCONF SSH connection failed for %s: %s", device_id, str(exc))
+                raise RuntimeError(f"Connection to Netopeer2 failed: {str(exc)}") from exc
+   
     def capabilities(self, device_id):
         session = self.sessions.get(device_id)
         if not session:
@@ -48,8 +53,8 @@ class NetconfManager:
 
     def modules(self, device_id=None):
         """
-        Parses YANG modules from session capabilities, scans the live datastore XML,
-        and ensures essential server modules are always populated.
+        Parses YANG modules from session capabilities and ensures essential
+        server modules (including ves-pnf-registration) are populated.
         """
         modules_list = []
         seen_names = set()
@@ -61,16 +66,15 @@ class NetconfManager:
                 else dict(self.sessions)
             )
 
-        # 1. Standard essential Netopeer2 server modules to guarantee in the UI
+        # Essential Netopeer2/Sysrepo modules to guarantee in UI
         ESSENTIAL_MODULES = [
+            {"name": "ves-pnf-registration", "revision": "2024-01-01", "capability": "urn:ves:pnf-registration"},
             {"name": "ietf-netconf-server", "revision": "2019-11-20", "capability": "urn:ietf:params:xml:ns:yang:ietf-netconf-server"},
             {"name": "ietf-keystore", "revision": "2019-11-20", "capability": "urn:ietf:params:xml:ns:yang:ietf-keystore"},
             {"name": "ietf-truststore", "revision": "2019-11-20", "capability": "urn:ietf:params:xml:ns:yang:ietf-truststore"},
             {"name": "ietf-netconf-acm", "revision": "2018-02-14", "capability": "urn:ietf:params:xml:ns:yang:ietf-netconf-acm"},
-            {"name": "ves-pnf-registration", "revision": "2024-01-01", "capability": "urn:ves:pnf-registration"},
         ]
 
-        # 2. Parse standard advertised capability strings from NETCONF Hello
         for dev_id, session in target_sessions.items():
             for capability in session.server_capabilities:
                 if "module=" in capability:
@@ -89,7 +93,6 @@ class NetconfManager:
                             "capability": capability
                         })
 
-        # 3. Inject essential server modules if they were not explicitly in Hello capabilities
         if target_sessions:
             dev_id = next(iter(target_sessions.keys()))
             for mod in ESSENTIAL_MODULES:
@@ -113,17 +116,15 @@ class NetconfManager:
             reply = session.get_config(source=source)
             xml_raw = reply.xml if isinstance(reply.xml, str) else reply.xml.decode("utf-8")
             
-            # Parse XML robustly with recovery enabled
             parser = etree.XMLParser(recover=True, encoding="utf-8")
             root = etree.fromstring(xml_raw.encode("utf-8"), parser=parser)
             
             if root is None:
                 return f'<data xmlns="{NETCONF_NS}"/>'
 
-            # Locate <data> element (handles namespaces or lack thereof)
+            # Locate <data> element
             data = root.find(f"{{{NETCONF_NS}}}data")
             if data is None:
-                # Fallback search by localname
                 for child in root:
                     if etree.QName(child.tag).localname == "data":
                         data = child
@@ -132,7 +133,7 @@ class NetconfManager:
             if data is None or len(data) == 0:
                 return f'<data xmlns="{NETCONF_NS}"/>'
 
-            # If a specific module was requested, filter top-level children
+            # Filter top-level tags by requested module
             if module:
                 clean_module = module.strip().lower()
 
@@ -158,21 +159,30 @@ class NetconfManager:
                     local_tag = qname.localname.lower()
                     ns_uri = (qname.namespace or "").lower()
 
-                    # Check local tag match
                     if any(tag == local_tag or tag in local_tag for tag in target_tags):
                         matching_nodes.append(child)
                         continue
 
-                    # Check URI match
                     if clean_module in ns_uri:
                         matching_nodes.append(child)
                         continue
 
-                    # Check global namespace map match
                     for prefix, uri in global_namespaces.items():
                         if uri and clean_module in str(uri).lower() and ns_uri == str(uri).lower():
                             matching_nodes.append(child)
                             break
+
+                # Device Isolation Filter: If ves-pnf-registration is requested and device_id is a specific serial number,
+                # extract only the <pnf> element matching <serial-number> == device_id
+                if clean_module == "ves-pnf-registration" and device_id and device_id != "local-netopeer":
+                    filtered_pnf = []
+                    for child in matching_nodes:
+                        if etree.QName(child.tag).localname.lower() == "pnf":
+                            sn_node = child.find(".//*[local-name()='serial-number']")
+                            if sn_node is not None and sn_node.text and sn_node.text.strip() == device_id:
+                                filtered_pnf.append(child)
+                    if filtered_pnf:
+                        matching_nodes = filtered_pnf
 
                 container = etree.Element(f"{{{NETCONF_NS}}}data")
                 for node in matching_nodes:
@@ -180,16 +190,13 @@ class NetconfManager:
 
                 return etree.tostring(container, encoding="unicode", pretty_print=True)
 
-            # Return full datastore XML
             return etree.tostring(data, encoding="unicode", pretty_print=True)
 
         except Exception as e:
             LOGGER.error("get_config error on %s: %s", device_id, str(e))
-            # Return empty data container on error instead of throwing a 500 Server Error
             return f'<data xmlns="{NETCONF_NS}"/>'
     
     def edit_config(self, device_id, config=None, target="candidate", default_operation="merge", **kwargs):
-        # Support both 'config' and 'config_xml' kwargs
         config = config or kwargs.get("config_xml")
         
         session = self.sessions.get(device_id)
@@ -198,21 +205,18 @@ class NetconfManager:
 
         config_str = str(config or "").strip()
 
-        # Parse XML to clean up any outer <data> tag wrapper if present
+        # Clean outer <data> or <config> wrappers to avoid duplicate tags
         try:
             parsed_xml = etree.fromstring(config_str.encode("utf-8"))
-            
-            # If user sent <data xmlns="...">...</data>, extract its children
             local_tag = etree.QName(parsed_xml.tag).localname
-            if local_tag == "data":
+            
+            if local_tag in ("data", "config"):
                 inner_xml = "".join(etree.tostring(child, encoding="unicode") for child in parsed_xml)
             else:
                 inner_xml = config_str
         except Exception:
-            # Fallback if raw string or snippet
             inner_xml = config_str
 
-        # Remove outer <config> if user already supplied one
         if inner_xml.startswith("<config") and inner_xml.endswith("</config>"):
             config_xml = inner_xml
         else:
@@ -222,12 +226,16 @@ class NetconfManager:
             reply = session.edit_config(target=target, config=config_xml, default_operation=default_operation)
             return reply.xml
         except RPCError as exc:
+            # Fallback to target="running" if candidate is disabled
+            if target == "candidate":
+                try:
+                    reply = session.edit_config(target="running", config=config_xml, default_operation=default_operation)
+                    return reply.xml
+                except RPCError:
+                    pass
             raise RuntimeError(f"Edit Config Failed: {exc.message}") from exc
     
     def validate(self, device_id, source="candidate"):
-        """
-        Validates the specified datastore against active Netopeer2 YANG schemas.
-        """
         session = self.sessions.get(device_id)
         if not session:
             raise RuntimeError(f"No active NETCONF session for device_id: {device_id}")
@@ -249,9 +257,6 @@ class NetconfManager:
             raise RuntimeError(f"Commit Failed: {exc.message}") from exc
 
     def discard_changes(self, device_id):
-        """
-        Reverts uncommitted edits in candidate datastore.
-        """
         session = self.sessions.get(device_id)
         if not session:
             raise RuntimeError(f"No active NETCONF session for device_id: {device_id}")
@@ -323,7 +328,7 @@ def forward_pnf_netconf(
     timeout: int = 10,
 ) -> str:
     """
-    Sends a single PNF record to netopeer2 server via NETCONF edit-config.
+    Sends a single PNF record to Netopeer2 server via NETCONF edit-config.
     """
     config_xml = build_pnf_edit_config_xml(pnf)
 
@@ -333,12 +338,12 @@ def forward_pnf_netconf(
     try:
         with manager.connect(
             host=host,
-            port=port,
+            port=int(port),
             username=username,
             password=None,
             hostkey_verify=False,
-            look_for_keys=True,
-            allow_agent=True,
+            look_for_keys=False,
+            allow_agent=False,
             key_filename=key_filename,
             device_params={"name": "default"},
             timeout=timeout,
@@ -360,3 +365,7 @@ def forward_pnf_netconf(
         raise RuntimeError(f"NETCONF RPC error: {exc}") from exc
     except Exception as exc:
         raise RuntimeError(f"NETCONF connection/edit-config failed: {exc}") from exc
+
+
+# Global shared instance for application-wide use
+netconf_service = NetconfManager()

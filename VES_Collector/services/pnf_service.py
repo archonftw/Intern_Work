@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 from storage.memory import PNF_STORE, NETCONF_FORWARD_CONFIG
-from services.netconf_service import forward_pnf_netconf
+from services.netconf_service import (forward_pnf_netconf,netconf_service,build_pnf_edit_config_xml)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -192,24 +192,60 @@ def extract_pnf_fields(event):
 # ==========================================================
 
 def process_pnf_registration(event):
-
+    """
+    Extracts PNF fields, stores in local memory, and auto-syncs
+    directly to Netopeer2 using the PNF's dynamic serial number.
+    """
     pnf = extract_pnf_fields(event)
-
     PNF_STORE.append(pnf)
 
-
     LOGGER.info(
-        "Stored PNF Registration : %s (%s)",
-        pnf["vendorName"],
-        pnf["oamV4IpAddress"]
+        "Stored PNF Registration: %s (%s)",
+        pnf.get("vendorName"),
+        pnf.get("oamV4IpAddress")
     )
 
-
+    # 1. Attempt standard forwarding
     _attempt_forward(pnf)
+
+    # 2. Dynamic NETCONF sync to Netopeer2 using PNF serial number
+    push_pnf_to_netopeer(pnf)
 
     return pnf
 
 
+def push_pnf_to_netopeer(pnf):
+    """Pushes extracted PNF fields as YANG XML into Netopeer2 using dynamic serial number."""
+    # Dynamically resolve device ID: Serial Number -> Unit Type -> Fallback
+    device_id = pnf.get("serialNumber") or pnf.get("unitType") or "local-netopeer"
+
+    active_sessions = getattr(netconf_service, "sessions", {})
+
+    # Automatically connect a dedicated session for this dynamic device ID
+    if device_id not in active_sessions:
+        try:
+            netconf_service.connect(
+                device_id=device_id,
+                host="127.0.0.1",
+                port=830,
+                username="archon",
+                key_filename="/home/archon/.ssh/id_ed25519"
+            )
+            LOGGER.info("[Netopeer Auto-Connect] Connected session for PNF: %s", device_id)
+        except Exception as err:
+            LOGGER.error("[Netopeer Auto-Connect Error] Failed to connect %s: %s", device_id, err)
+            return
+
+    # Construct YANG XML matching ves-pnf-registration schema
+    config_xml = build_pnf_edit_config_xml(pnf)
+
+    try:
+        # Edit candidate and commit live
+        netconf_service.edit_config(device_id=device_id, config=config_xml, target="candidate")
+        netconf_service.commit(device_id=device_id)
+        LOGGER.info("[Netopeer2 Push] PNF '%s' successfully committed to live datastore.", device_id)
+    except Exception as exc:
+        LOGGER.error("[Netopeer2 Push Error] Failed to commit PNF '%s' to Netopeer2: %s", device_id, exc)
 
 def _attempt_forward(pnf):
 

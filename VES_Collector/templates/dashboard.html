@@ -8,8 +8,8 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <style>
 /* ============================================================
-   Updated CM Module List & Pinning Custom Styles
-   ============================================================ */
+    CM Module List & Pinning Custom Styles
+    ============================================================ */
 .cm-module-list {
   display: flex;
   flex-direction: column;
@@ -17,7 +17,6 @@
   width: 100%;
 }
 
-/* Full-width clickable module button card */
 .cm-module-card {
   display: flex;
   align-items: center;
@@ -68,7 +67,6 @@
   color: var(--text-muted, #94a3b8);
 }
 
-/* Pin Action Button */
 .cm-pin-btn {
   background: transparent;
   border: none;
@@ -107,16 +105,14 @@
       <li>
         <button class="nav-item" data-view="cm">
           <span class="nav-icon">&#9881;</span>
-          <span class="nav-label">Configuration</span>
+          <span class="nav-label">CM</span>
           <span class="nav-badge" id="navCmBadge">0</span>
         </button>
       </li>
       <li><button class="nav-item active" data-view="overview"><span class="nav-icon">&#9635;</span><span class="nav-label">Overview</span></button></li>
-      <li><button class="nav-item" data-view="alarms"><span class="nav-icon">&#9650;</span><span class="nav-label">Alarms</span><span class="nav-badge alert" id="navAlarmBadge">0</span></button></li>
-      <li><button class="nav-item" data-view="devices"><span class="nav-icon">&#9637;</span><span class="nav-label">Devices</span><span class="nav-badge" id="navDeviceBadge">0</span></button></li>
+      <li><button class="nav-item" data-view="alarms"><span class="nav-icon">&#9650;</span><span class="nav-label">FM</span><span class="nav-badge alert" id="navAlarmBadge">0</span></button></li>
       <li><button class="nav-item" data-view="pnf"><span class="nav-icon">&#9889;</span><span class="nav-label">PNF Registration</span><span class="nav-badge" id="navPnfBadge">0</span></button></li>
-      <li><button class="nav-item" data-view="files"><span class="nav-icon">&#8862;</span><span class="nav-label">Files</span><span class="nav-badge" id="navFilesBadge">0</span></button></li>
-      <li><button class="nav-item" data-view="stnd"><span class="nav-icon">&#9711;</span><span class="nav-label">STND Defined</span><span class="nav-badge" id="navStndBadge">0</span></button></li>
+      <li><button class="nav-item" data-view="files"><span class="nav-icon">&#8862;</span><span class="nav-label">PM</span><span class="nav-badge" id="navFilesBadge">0</span></button></li>
       <li><button class="nav-item" data-view="explorer"><span class="nav-icon">&#9638;</span><span class="nav-label">Event Explorer</span></button></li>
     </ul>
     <div class="sidebar-foot">Single-instance collector<br>In-memory store (session only)</div>
@@ -159,16 +155,28 @@
             <div class="chart-wrap"><canvas id="domainChart"></canvas></div>
           </div>
           <div class="panel">
-            <h3>Live Event Feed</h3>  
+            <h3>Live Event Feed</h3>
             <div id="liveFeed"></div>
           </div>
         </div>
 
         <div class="panel">
-          <h3>Devices <span class="count-pill" id="overviewDevicePill">0 connected</span>
-            <button class="btn small" data-goto="devices">View all &rarr;</button>
-          </h3>
-          <div class="device-grid" id="overviewDeviceGrid"></div>
+          <h3>Devices <span class="count-pill" id="devicesCountPill">0 connected</span></h3>
+          <div class="controls">
+            <input id="deviceSearch" placeholder="Search device ID, vendor, or model" autocomplete="off">
+            <select id="deviceStatusFilter">
+              <option value="">All Statuses</option>
+              <option value="live">Live</option>
+              <option value="idle">Idle</option>
+              <option value="stale">Stale / Offline</option>
+            </select>
+            <select id="deviceRegFilter">
+              <option value="">Registered &amp; Unregistered</option>
+              <option value="yes">Registered only</option>
+              <option value="no">Unregistered only</option>
+            </select>
+          </div>
+          <div class="device-grid" id="devicesGrid"></div>
         </div>
 
       </section>
@@ -177,7 +185,7 @@
 
         <div class="panel">
           <h3>Alarm Correlation</h3>
-          <p class="panel-note">Correlated client-side from fault &amp; stndDefined threshold events (grouped by device + condition). Not yet persisted server-side &mdash; acknowledgements live in this browser only until a backend alarm store exists.</p>
+          <p class="panel-note">Correlated client-side from fault, stndDefined (notifyNewAlarm/notifyClearedAlarm), &amp; threshold events (grouped by device + condition). Not yet persisted server-side &mdash; acknowledgements live in this browser only until a backend alarm store exists.</p>
 
           <div class="alarm-summary-strip" id="alarmSummaryStrip"></div>
 
@@ -231,29 +239,6 @@
 
       </section>
 
-      <section class="view-panel" id="view-devices">
-
-        <div class="panel">
-          <h3>Devices <span class="count-pill" id="devicesCountPill">0 connected</span></h3>
-          <div class="controls">
-            <input id="deviceSearch" placeholder="Search device ID, vendor, or model" autocomplete="off">
-            <select id="deviceStatusFilter">
-              <option value="">All Statuses</option>
-              <option value="live">Live</option>
-              <option value="idle">Idle</option>
-              <option value="stale">Stale / Offline</option>
-            </select>
-            <select id="deviceRegFilter">
-              <option value="">Registered &amp; Unregistered</option>
-              <option value="yes">Registered only</option>
-              <option value="no">Unregistered only</option>
-            </select>
-          </div>
-          <div class="device-grid" id="devicesGrid"></div>
-        </div>
-
-      </section>
-
       <section class="view-panel" id="view-pnf">
 
         <div class="panel">
@@ -284,10 +269,10 @@
 
       </section>
 
-      <!-- Updated Configuration Management (CM) Section -->
+      <!-- Configuration Management (CM) Section -->
       <section class="view-panel" id="view-cm">
         <div class="panel">
-          
+         
           <!-- Header Toolbar -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color, #2d3748); padding-bottom: 0.75rem;">
             <div>
@@ -342,10 +327,10 @@
             </div>
           </div>
 
-          <!-- Main Workspace Grid with Increased Modules Width (360px) -->
+          <!-- Main Workspace Grid -->
           <div class="main-grid" style="grid-template-columns: 360px 1fr; gap: 1rem; margin-top: 1rem; align-items: start;">
             
-            <!-- Left: Full-Width Clickable Installed YANG Modules Browser with Pin Support -->
+            <!-- Left: Installed YANG Modules Browser -->
             <div class="panel" style="padding: 0.75rem; margin: 0; width: 100%; box-sizing: border-box;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
                 <h4 style="margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">
@@ -361,7 +346,7 @@
               </div>
             </div>
 
-            <!-- Right: Interactive Hierarchy & Raw Code Workspace -->
+            <!-- Right: Interactive Hierarchy Workspace -->
             <div class="panel" style="padding: 0.75rem; margin: 0; display: flex; flex-direction: column;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                 <h4 style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);" id="cmEditorTitle">
@@ -370,7 +355,7 @@
                 <span class="count-pill" id="cmEditorStatePill">Read-Only</span>
               </div>
 
-              <!-- 1. Hierarchical Tree Editor Container -->
+              <!-- Hierarchical Tree Editor Container -->
               <div 
                 id="cmTreeContainer" 
                 style="width: 100%; height: 500px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.6; background: #0b0f19; color: #38edf8; border: 1px solid var(--border-color, #2d3748); border-radius: 4px; padding: 12px; overflow: auto; box-sizing: border-box;"
@@ -380,7 +365,7 @@
                 </div>
               </div>
 
-              <!-- 2. Raw XML Code Fallback Area (Hidden in Tree Mode) -->
+              <!-- Raw XML Fallback Area -->
               <textarea 
                 id="cmConfigOutput" 
                 spellcheck="false" 
@@ -427,28 +412,6 @@
             <span id="filesCount">0 files shown</span>
             <span>Buffer holds last 200 file references</span>
           </div>
-        </div>
-
-      </section>
-
-      <section class="view-panel" id="view-stnd">
-
-        <div class="panel">
-          <h3>STND Defined Events <span class="count-pill" id="stndCountPill">0 events</span></h3>
-          <p class="panel-note">Events under the stndDefined domain, grouped by resolved notification type (new alarm, cleared alarm, file-ready, PNF registration). Grouping mirrors the same detection logic the backend uses to dispatch these events.</p>
-
-          <div class="controls">
-            <input id="stndSearch" placeholder="Search device or event name" autocomplete="off">
-            <select id="stndTypeFilter">
-              <option value="">All Types</option>
-              <option value="notifyNewAlarm">New Alarm</option>
-              <option value="notifyClearedAlarm">Cleared Alarm</option>
-              <option value="notifyFileReady">File Ready</option>
-              <option value="notifyPNFRegistration">PNF Registration</option>
-            </select>
-          </div>
-
-          <div id="stndGroups"></div>
         </div>
 
       </section>
@@ -578,8 +541,20 @@
 
 <script>
 /* ============================================================
-   State
-   ============================================================ */
+    Global Helper: Safe Fetch
+    ============================================================ */
+async function safeFetch(url, options = {}) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+  }
+  return await response.json();
+}
+
+/* ============================================================
+    State
+    ============================================================ */
 let cachedEvents = [];
 let cachedDevices = [];
 let cachedFiles = [];
@@ -595,19 +570,17 @@ let firstLoad = true;
 let selectedEventId = null;
 
 const VIEW_META = {
-  cm:       { title:'Configuration Management', subtitle:'NETCONF device configuration' },
-  overview: { title:'Overview',                 subtitle:'Live network event summary' },
-  alarms:   { title:'Alarms',                   subtitle:'Correlated fault & threshold conditions' },
-  devices:  { title:'Devices',                  subtitle:'All reporting network functions' },
-  pnf:      { title:'PNF Registration',         subtitle:'Registered Physical Network Functions' },
-  files:    { title:'Files',                    subtitle:'fileReady references from stndDefined events' },
-  stnd:     { title:'STND Defined',             subtitle:'Standard-defined notifications grouped by type' },
-  explorer: { title:'Event Explorer',           subtitle:'Raw event stream, searchable & sortable' },
+  cm:       { title:'CM',                        subtitle:'NETCONF device configuration' },
+  overview: { title:'Overview',                  subtitle:'Live network event summary' },
+  alarms:   { title:'FM',                        subtitle:'Correlated fault, stndDefined & threshold conditions' },
+  pnf:      { title:'PNF Registration',          subtitle:'Registered Physical Network Functions' },
+  files:    { title:'PM',                        subtitle:'fileReady references from stndDefined events' },
+  explorer: { title:'Event Explorer',            subtitle:'Raw event stream, searchable & sortable' },
 };
 
 /* ============================================================
-   Navigation
-   ============================================================ */
+    Navigation & View Management
+    ============================================================ */
 function switchView(view){
   currentView = view;
   document.querySelectorAll('.view-panel').forEach(v=>v.classList.remove('active'));
@@ -617,9 +590,14 @@ function switchView(view){
   document.getElementById('viewSubtitle').textContent = VIEW_META[view].subtitle;
   document.getElementById('sidebar').classList.remove('open');
 
-  if(view==='cm') loadCM();
+  if(view==='cm') {
+    loadCM();
+    startCmAutoPolling();
+  } else {
+    stopCmAutoPolling();
+  }
+
   if(view==='pnf') renderPNFs();
-  if(view==='stnd') renderStnd();
 }
 
 document.querySelectorAll('.nav-item').forEach(btn=>{
@@ -641,7 +619,7 @@ document.addEventListener('keydown', (e)=>{
 
 document.getElementById('globalSearch').addEventListener('input', (e)=>{
   const val = e.target.value;
-  if(val.length>0 && currentView!=='explorer' && currentView!=='devices' && currentView!=='pnf'){
+  if(val.length>0 && currentView!=='explorer' && currentView!=='pnf'){
     switchView('explorer');
   }
   document.getElementById('searchBox').value = val;
@@ -678,31 +656,49 @@ async function loadStats(){
   if(!chartInitialized){
      createDomainChart(data);
      chartInitialized = true;
-  } else {
+  } else if (domainChart) {
      domainChart.data.datasets[0].data = data;
      domainChart.update();
   }
 }
 
 /* ============================================================
-   Configuration Management (CM) Module State & Pinning Management
-   ============================================================ */
+    Configuration Management (CM) Logic & Persistent Tree State
+    ============================================================ */
 let activeCmDevice = null;
 let isCmDirty = false;
-let currentCmViewMode = 'tree'; // 'tree' or 'raw'
+let currentCmViewMode = 'tree';
 let activeXmlDoc = null;
 let pinnedModules = JSON.parse(localStorage.getItem('cm_pinned_modules') || '[]');
 let currentCmModules = [];
+let cmPollingInterval = null;
+let expandedNodePaths = new Set(); // Stores expanded node paths across re-renders
+
+function startCmAutoPolling() {
+  stopCmAutoPolling();
+  cmPollingInterval = setInterval(() => {
+    if (currentView === 'cm') {
+      const moduleSelect = document.getElementById('cmModuleSelect');
+      const targetModule = moduleSelect ? moduleSelect.value : 'ves-pnf-registration';
+      fetchCmConfig(targetModule, true);
+    }
+  }, 3000);
+}
+
+function stopCmAutoPolling() {
+  if (cmPollingInterval) {
+    clearInterval(cmPollingInterval);
+    cmPollingInterval = null;
+  }
+}
 
 function togglePinModule(event, moduleName) {
-  event.stopPropagation(); // Prevent launching module view when toggling pin
-
+  event.stopPropagation();
   if (pinnedModules.includes(moduleName)) {
     pinnedModules = pinnedModules.filter(m => m !== moduleName);
   } else {
     pinnedModules.push(moduleName);
   }
-
   localStorage.setItem('cm_pinned_modules', JSON.stringify(pinnedModules));
   renderCmModules(currentCmModules);
 }
@@ -726,11 +722,9 @@ function renderCmModules(modules) {
     return;
   }
 
-  // Sort pinned modules first, then alphabetically
   const sortedModules = [...currentCmModules].sort((a, b) => {
     const aPinned = pinnedModules.includes(a.name);
     const bPinned = pinnedModules.includes(b.name);
-
     if (aPinned && !bPinned) return -1;
     if (!aPinned && bPinned) return 1;
     return a.name.localeCompare(b.name);
@@ -738,7 +732,6 @@ function renderCmModules(modules) {
 
   container.innerHTML = sortedModules.map(mod => {
     const isPinned = pinnedModules.includes(mod.name);
-    
     return `
       <div 
         class="cm-module-card ${isPinned ? 'pinned' : ''}" 
@@ -788,75 +781,83 @@ async function loadCM() {
     let sessionRes = await safeFetch('/api/cm/sessions');
     let devices = sessionRes.connected_devices || [];
 
-    // Auto-connect pnf002 if session dropped
     if (devices.length === 0) {
-      statusPill.textContent = 'Connecting...';
-      statusPill.className = 'count-pill warn';
+      if (statusPill) {
+        statusPill.textContent = 'Connecting...';
+        statusPill.className = 'count-pill warn';
+      }
 
       try {
-    const autoConnectRes = await safeFetch('/api/cm/connect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        device_id: "pnf002",
-        host: "127.0.0.1",
-        port: 830,
-        username: "archon",
-        key_filename: "/home/archon/.ssh/id_ed25519" // Updated to real key!
-      })
-    });
+        const autoConnectRes = await safeFetch('/api/cm/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            device_id: "local-netopeer",
+            host: "127.0.0.1",
+            port: 830,
+            username: "archon",
+            key_filename: "/home/archon/.ssh/id_ed25519"
+          })
+        });
 
-    if (autoConnectRes.status === 'connected') {
-      sessionRes = await safeFetch('/api/cm/sessions');
-      devices = sessionRes.connected_devices || [];
-    }
-  } catch (autoErr) {
-    console.warn("Auto-connect attempt failed:", autoErr);
-  }
+        if (autoConnectRes.status === 'connected') {
+          sessionRes = await safeFetch('/api/cm/sessions');
+          devices = sessionRes.connected_devices || [];
+        }
+      } catch (autoErr) {
+        console.warn("Auto-connect attempt failed:", autoErr);
+      }
     }
 
     if (devices.length === 0) {
-      statusPill.textContent = 'Disconnected';
-      statusPill.className = 'count-pill bad';
+      if (statusPill) {
+        statusPill.textContent = 'Disconnected';
+        statusPill.className = 'count-pill bad';
+      }
       return;
     }
 
-    statusPill.textContent = 'Connected';
-    statusPill.className = 'count-pill good';
-
-    deviceSelect.innerHTML = devices.map(id => `<option value="${id}">${id}</option>`).join('');
-    if (!activeCmDevice || !devices.includes(activeCmDevice)) {
-      activeCmDevice = devices[0];
+    if (statusPill) {
+      statusPill.textContent = 'Connected';
+      statusPill.className = 'count-pill good';
     }
-    deviceSelect.value = activeCmDevice;
 
-    // Fetch installed modules list from Netopeer2 capabilities & datastore
+    if (deviceSelect) {
+      deviceSelect.innerHTML = devices.map(id => `<option value="${id}">${id}</option>`).join('');
+      if (!activeCmDevice || !devices.includes(activeCmDevice)) {
+        activeCmDevice = devices[0];
+      }
+      deviceSelect.value = activeCmDevice;
+    }
+
     const modules = await safeFetch(`/api/cm/modules?device_id=${encodeURIComponent(activeCmDevice)}`);
 
     if (Array.isArray(modules) && modules.length > 0) {
-      moduleSelect.innerHTML = '<option value="">All Modules (Full Config)</option>' +
-        modules.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+      if (moduleSelect) {
+        moduleSelect.innerHTML = '<option value="">All Modules (Full Config)</option>' +
+          modules.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+      }
 
       renderCmModules(modules);
 
-      // FORCE RETRIEVAL: Directly request ves-pnf-registration from Netopeer2 on view load
       if (modules.some(m => m.name === 'ves-pnf-registration')) {
-        moduleSelect.value = 'ves-pnf-registration';
+        if (moduleSelect) moduleSelect.value = 'ves-pnf-registration';
         fetchCmConfig('ves-pnf-registration');
         return;
       }
     }
 
-    // Fallback if ves-pnf-registration module isn't loaded
     fetchCmConfig();
 
   } catch (err) {
-    statusPill.textContent = 'Disconnected';
-    statusPill.className = 'count-pill bad';
+    if (statusPill) {
+      statusPill.textContent = 'Disconnected';
+      statusPill.className = 'count-pill bad';
+    }
   }
 }
 
-async function fetchCmConfig(moduleName) {
+async function fetchCmConfig(moduleName, silent = false) {
   const module = moduleName !== undefined ? moduleName : document.getElementById('cmModuleSelect').value;
   const datastore = document.getElementById('cmDatastore').value;
   const output = document.getElementById('cmConfigOutput');
@@ -865,14 +866,18 @@ async function fetchCmConfig(moduleName) {
   const statePill = document.getElementById('cmEditorStatePill');
   const saveBtn = document.getElementById('cmSaveConfigBtn');
 
-  if (!activeCmDevice) {
-    alert('No active NETCONF session selected.');
+  if (!activeCmDevice) return;
+
+  const isTreeFocused = treeContainer && treeContainer.contains(document.activeElement);
+  if (silent && (isCmDirty || isTreeFocused)) {
     return;
   }
 
-  treeContainer.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">Fetching hierarchy tree from Netopeer2...</div>';
-  output.value = 'Fetching configuration...';
-  statusText.textContent = `Loading ${module || 'full datastore'} (${datastore})...`;
+  if (!silent) {
+    treeContainer.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">Fetching hierarchy tree from Netopeer2...</div>';
+    output.value = 'Fetching configuration...';
+    if (statusText) statusText.textContent = `Loading ${module || 'full datastore'} (${datastore})...`;
+  }
 
   try {
     let url = `/api/cm/config?device_id=${encodeURIComponent(activeCmDevice)}&datastore=${encodeURIComponent(datastore)}`;
@@ -881,9 +886,12 @@ async function fetchCmConfig(moduleName) {
     const res = await safeFetch(url);
     const xmlText = res.config !== undefined ? res.config : res;
 
+    if (silent && output.value === xmlText) {
+      return;
+    }
+
     output.value = xmlText;
 
-    // Parse XML String into DOM Document
     const parser = new DOMParser();
     activeXmlDoc = parser.parseFromString(xmlText, "text/xml");
 
@@ -894,22 +902,41 @@ async function fetchCmConfig(moduleName) {
       renderXmlHierarchyTree(activeXmlDoc, treeContainer);
     }
 
-    statusText.textContent = `Loaded ${module || 'full config'} (${datastore})`;
-    statePill.textContent = 'Editing Mode';
-    statePill.className = 'count-pill warn';
+    if (statusText && !isCmDirty) statusText.textContent = `Loaded ${module || 'full config'} (${datastore})`;
+    if (statePill && !isCmDirty) {
+      statePill.textContent = 'Editing Mode';
+      statePill.className = 'count-pill warn';
+    }
     
-    saveBtn.disabled = false;
-    isCmDirty = false;
+    if (saveBtn && !isCmDirty) saveBtn.disabled = false;
   } catch (err) {
-    treeContainer.innerHTML = `<div style="color:#ff4d5e; padding:20px;">Error loading configuration: ${err.message}</div>`;
-    output.value = `<!-- Error: ${err.message || 'Server error'} -->`;
-    statusText.textContent = 'Error loading datastore';
-    saveBtn.disabled = true;
+    if (!silent) {
+      treeContainer.innerHTML = `<div style="color:#ff4d5e; padding:20px;">Error loading configuration: ${err.message}</div>`;
+      output.value = `<!-- Error: ${err.message || 'Server error'} -->`;
+      if (statusText) statusText.textContent = 'Error loading datastore';
+      if (saveBtn) saveBtn.disabled = true;
+    }
   }
 }
 
-/* --- Hierarchical Tree Renderer & Interactive DOM Generator --- */
+function getCurrentlyExpandedPaths(container) {
+  const paths = new Set();
+  if (!container) return paths;
+  container.querySelectorAll('[data-node-path]').forEach(el => {
+    const children = el.querySelector(':scope > .cm-tree-children');
+    if (children && children.style.display !== 'none') {
+      paths.add(el.dataset.nodePath);
+    }
+  });
+  return paths;
+}
+
 function renderXmlHierarchyTree(xmlDoc, container) {
+  if (container.children.length > 0 && !container.querySelector('.empty-state')) {
+    const currentPaths = getCurrentlyExpandedPaths(container);
+    currentPaths.forEach(p => expandedNodePaths.add(p));
+  }
+
   container.innerHTML = '';
   const root = xmlDoc.documentElement;
 
@@ -918,14 +945,18 @@ function renderXmlHierarchyTree(xmlDoc, container) {
     return;
   }
 
-  const rootElement = createTreeNodeElement(root, true);
+  const rootElement = createTreeNodeElement(root, true, "", 0);
   container.appendChild(rootElement);
 }
 
-function createTreeNodeElement(node, isRoot = false) {
+function createTreeNodeElement(node, isRoot = false, parentPath = "", siblingIndex = 0) {
   const wrapper = document.createElement('div');
+  wrapper.className = 'cm-tree-node';
   wrapper.style.marginLeft = isRoot ? '0px' : '16px';
   wrapper.style.marginTop = '2px';
+
+  const nodePath = isRoot ? node.tagName : `${parentPath}/${node.tagName}[${siblingIndex}]`;
+  wrapper.dataset.nodePath = nodePath;
 
   const elementChildren = Array.from(node.childNodes).filter(n => n.nodeType === 1);
   const textContent = Array.from(node.childNodes)
@@ -935,7 +966,6 @@ function createTreeNodeElement(node, isRoot = false) {
 
   const hasChildren = elementChildren.length > 0;
 
-  // Tag Row
   const row = document.createElement('div');
   row.style.display = 'flex';
   row.style.alignItems = 'center';
@@ -949,13 +979,6 @@ function createTreeNodeElement(node, isRoot = false) {
   toggleBtn.style.userSelect = 'none';
   toggleBtn.style.fontWeight = 'bold';
   toggleBtn.style.color = '#ffd23f';
-
-  if (hasChildren) {
-    toggleBtn.textContent = '+';
-  } else {
-    toggleBtn.textContent = '•';
-    toggleBtn.style.color = 'var(--text-muted, #8b96a6)';
-  }
 
   const tagLabel = document.createElement('span');
   tagLabel.style.color = '#ff9f43';
@@ -976,11 +999,20 @@ function createTreeNodeElement(node, isRoot = false) {
   }
 
   const childrenContainer = document.createElement('div');
-  childrenContainer.style.display = 'none';
+  childrenContainer.className = 'cm-tree-children';
+
+  const isExpanded = expandedNodePaths.has(nodePath);
+  childrenContainer.style.display = isExpanded ? 'block' : 'none';
 
   if (hasChildren) {
+    toggleBtn.textContent = isExpanded ? '-' : '+';
+
+    const tagCounts = {};
     elementChildren.forEach(child => {
-      childrenContainer.appendChild(createTreeNodeElement(child, false));
+      const tag = child.tagName;
+      const idx = tagCounts[tag] || 0;
+      tagCounts[tag] = idx + 1;
+      childrenContainer.appendChild(createTreeNodeElement(child, false, nodePath, idx));
     });
 
     toggleBtn.addEventListener('click', (e) => {
@@ -988,26 +1020,36 @@ function createTreeNodeElement(node, isRoot = false) {
       const isCollapsed = childrenContainer.style.display === 'none';
       childrenContainer.style.display = isCollapsed ? 'block' : 'none';
       toggleBtn.textContent = isCollapsed ? '-' : '+';
+      if (isCollapsed) {
+        expandedNodePaths.add(nodePath);
+      } else {
+        expandedNodePaths.delete(nodePath);
+      }
     });
-  } else if (textContent !== '') {
-    const valueInput = document.createElement('input');
-    valueInput.type = 'text';
-    valueInput.value = textContent;
-    valueInput.style.background = '#10151c';
-    valueInput.style.color = '#34d399';
-    valueInput.style.border = '1px solid #2d3748';
-    valueInput.style.borderRadius = '3px';
-    valueInput.style.padding = '1px 6px';
-    valueInput.style.fontSize = '11px';
-    valueInput.style.fontFamily = 'inherit';
-    valueInput.style.width = Math.max(120, textContent.length * 8) + 'px';
+  } else {
+    toggleBtn.textContent = '•';
+    toggleBtn.style.color = 'var(--text-muted, #8b96a6)';
 
-    valueInput.addEventListener('input', () => {
-      node.textContent = valueInput.value;
-      markCmAsDirty();
-    });
+    if (textContent !== '') {
+      const valueInput = document.createElement('input');
+      valueInput.type = 'text';
+      valueInput.value = textContent;
+      valueInput.style.background = '#10151c';
+      valueInput.style.color = '#34d399';
+      valueInput.style.border = '1px solid #2d3748';
+      valueInput.style.borderRadius = '3px';
+      valueInput.style.padding = '1px 6px';
+      valueInput.style.fontSize = '11px';
+      valueInput.style.fontFamily = 'inherit';
+      valueInput.style.width = Math.max(120, textContent.length * 8) + 'px';
 
-    row.appendChild(valueInput);
+      valueInput.addEventListener('input', () => {
+        node.textContent = valueInput.value;
+        markCmAsDirty();
+      });
+
+      row.appendChild(valueInput);
+    }
   }
 
   wrapper.appendChild(row);
@@ -1018,7 +1060,6 @@ function createTreeNodeElement(node, isRoot = false) {
   return wrapper;
 }
 
-/* --- Sync & Save Operations --- */
 function markCmAsDirty() {
   isCmDirty = true;
   const saveBtn = document.getElementById('cmSaveConfigBtn');
@@ -1194,7 +1235,6 @@ async function discardCmEdits() {
   }
 }
 
-/* --- Mode Switcher (Tree vs Raw) & Expand Helpers --- */
 function switchCmViewMode(mode) {
   currentCmViewMode = mode;
   const treeContainer = document.getElementById('cmTreeContainer');
@@ -1218,7 +1258,6 @@ function switchCmViewMode(mode) {
   }
 }
 
-// Event Bindings
 document.getElementById('cmToggleTreeModeBtn').addEventListener('click', () => switchCmViewMode('tree'));
 document.getElementById('cmToggleRawModeBtn').addEventListener('click', () => switchCmViewMode('raw'));
 
@@ -1272,8 +1311,8 @@ function createDomainChart(data){
 }
 
 /* ============================================================
-   Events (shared cache) + Explorer
-   ============================================================ */
+    Events & Dashboard Functions
+    ============================================================ */
 async function loadEvents(){
  try{
    cachedEvents = await safeFetch('/api/events?limit=200');
@@ -1289,11 +1328,11 @@ function renderFeed(){
  const recent=[...cachedEvents].reverse().slice(0,20);
  if(recent.length===0){ feed.innerHTML='<div class="empty-state">Waiting for events...</div>'; return; }
  feed.innerHTML = recent.map(e=>`
-   <div class="feed-item">
-     <span class="badge ${e.domain}">${e.domain}</span>
-     ${e.eventName || e.domain}<br>
-     <small>${e.sourceName||'-'}</small>
-   </div>`).join('');
+    <div class="feed-item">
+      <span class="badge ${e.domain}">${e.domain}</span>
+      ${e.eventName || e.domain}<br>
+      <small>${e.sourceName||'-'}</small>
+    </div>`).join('');
 }
 
 function populateDeviceFilter(){
@@ -1343,13 +1382,13 @@ function renderEvents(){
    table.innerHTML='<tr><td colspan="5" class="empty-state">No matching events</td></tr>';
  } else {
    table.innerHTML = rows.map(event=>`
-     <tr data-id="${event.collectorId}">
-       <td>${event.receivedAt||'-'}</td>
-       <td><span class="badge ${event.domain}">${event.domain}</span>${explorerDomainSubTag(event)}</td>
-       <td>${event.eventId||'-'}</td>
-       <td>${event.sourceName||'-'}</td>
-       <td>${event.priority||'-'}</td>
-     </tr>`).join('');
+      <tr data-id="${event.collectorId}">
+        <td>${event.receivedAt||'-'}</td>
+        <td><span class="badge ${event.domain}">${event.domain}</span>${explorerDomainSubTag(event)}</td>
+        <td>${event.eventId||'-'}</td>
+        <td>${event.sourceName||'-'}</td>
+        <td>${event.priority||'-'}</td>
+      </tr>`).join('');
    [...table.children].forEach((row,i)=>{
      row.addEventListener('click', ()=>showEvent(rows[i]));
      if(row.dataset.id === selectedEventId){
@@ -1422,15 +1461,6 @@ function attachDeviceClicks(container){
 
 function renderDevices(){
  const sorted=[...cachedDevices].sort((a,b)=> new Date(b.lastSeen||0) - new Date(a.lastSeen||0));
- const overviewGrid=document.getElementById('overviewDeviceGrid');
- document.getElementById('overviewDevicePill').textContent = `${cachedDevices.length} connected`;
- if(sorted.length===0){
-   overviewGrid.innerHTML='<div class="empty-state">No devices have reported yet.</div>';
- } else {
-   overviewGrid.innerHTML = sorted.slice(0,4).map(deviceCardHtml).join('');
-   attachDeviceClicks(overviewGrid);
- }
-
  const search=(document.getElementById('deviceSearch').value||'').toLowerCase();
  const statusFilter=document.getElementById('deviceStatusFilter').value;
  const regFilter=document.getElementById('deviceRegFilter').value;
@@ -1445,7 +1475,9 @@ function renderDevices(){
  });
 
  const devicesGrid=document.getElementById('devicesGrid');
- document.getElementById('devicesCountPill').textContent = `${cachedDevices.length} connected`;
+ const devicesCountPill=document.getElementById('devicesCountPill');
+ if(devicesCountPill) devicesCountPill.textContent = `${cachedDevices.length} connected`;
+ if(!devicesGrid) return;
  if(filtered.length===0){
    devicesGrid.innerHTML='<div class="empty-state">No devices match the current filters.</div>';
  } else {
@@ -1518,8 +1550,8 @@ document.getElementById('deviceModalBackdrop').addEventListener('click', (e)=>{
 });
 
 /* ============================================================
-   PNF Registration Loading & Rendering
-   ============================================================ */
+    PNF Registration Loading & Rendering
+    ============================================================ */
 async function loadPNFs() {
   try {
     const response = await safeFetch('/api/pnf');
@@ -1654,8 +1686,8 @@ document.getElementById('savePnfConfigBtn').addEventListener('click', async () =
 });
 
 /* ============================================================
-   Files
-   ============================================================ */
+    Files
+    ============================================================ */
 async function loadFiles(){
  let res;
  try{ res = await safeFetch('/eventListener/v7?limit=200'); } catch(e){ return; }
@@ -1687,49 +1719,49 @@ function renderFiles(){
  document.getElementById('filesCountPill').textContent = `${cachedFiles.length} files`;
 
  let rows = cachedFiles.filter(f=>{
-   if(formatFilter && f.fileFormat!==formatFilter) return false;
-   const text=((f.sourceName||'')+' '+(f.fileLocation||'')+' '+(f.fileFormat||'')+' '+(f.fileId||'')).toLowerCase();
-   if(search && !text.includes(search)) return false;
-   return true;
+    if(formatFilter && f.fileFormat!==formatFilter) return false;
+    const text=((f.sourceName||'')+' '+(f.fileLocation||'')+' '+(f.fileFormat||'')+' '+(f.fileId||'')).toLowerCase();
+    if(search && !text.includes(search)) return false;
+    return true;
  });
 
  rows.sort((a,b)=> new Date(b.receivedAt||0) - new Date(a.receivedAt||0));
 
  const table=document.getElementById('filesTable');
  if(rows.length===0){
-   table.innerHTML='<tr><td colspan="9" class="empty-state">No file references yet. Waiting for fileReady events...</td></tr>';
+    table.innerHTML='<tr><td colspan="9" class="empty-state">No file references yet. Waiting for fileReady events...</td></tr>';
  } else {
-   table.innerHTML = rows.map(f=>`
-     <tr>
-       <td><span class="file-id-chip" data-copy-id="${f.fileId}" title="Click to copy full ID: ${f.fileId}">${(f.fileId||'').slice(0,8)}</span></td>
-       <td>${f.receivedAt ? new Date(f.receivedAt).toLocaleTimeString() : '-'}</td>
-       <td>${f.sourceName||'-'}</td>
-       <td><span class="badge stndDefined">${f.fileFormat||'-'}</span></td>
-       <td>${f.fileDataType||'-'}</td>
-       <td>${formatBytes(f.fileSize)}</td>
-       <td>${f.fileReadyTime||'-'}</td>
-       <td>${f.fileExpirationTime||'-'}</td>
-       <td><button class="btn small primary" data-file-id="${f.fileId}">Preview</button></td>
-     </tr>`).join('');
+    table.innerHTML = rows.map(f=>`
+      <tr>
+        <td><span class="file-id-chip" data-copy-id="${f.fileId}" title="Click to copy full ID: ${f.fileId}">${(f.fileId||'').slice(0,8)}</span></td>
+        <td>${f.receivedAt ? new Date(f.receivedAt).toLocaleTimeString() : '-'}</td>
+        <td>${f.sourceName||'-'}</td>
+        <td><span class="badge stndDefined">${f.fileFormat||'-'}</span></td>
+        <td>${f.fileDataType||'-'}</td>
+        <td>${formatBytes(f.fileSize)}</td>
+        <td>${f.fileReadyTime||'-'}</td>
+        <td>${f.fileExpirationTime||'-'}</td>
+        <td><button class="btn small primary" data-file-id="${f.fileId}">Preview</button></td>
+      </tr>`).join('');
 
-   table.querySelectorAll('.file-id-chip').forEach(chip=>{
-     chip.addEventListener('click', ()=>{
-       const id = chip.dataset.copyId;
-       if(navigator.clipboard && navigator.clipboard.writeText){
-         navigator.clipboard.writeText(id).then(()=>{
-           const original = chip.textContent;
-           chip.textContent = 'copied!';
-           setTimeout(()=>{ chip.textContent = original; }, 900);
-         }).catch(()=>{});
-       }
-     });
-   });
+    table.querySelectorAll('.file-id-chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        const id = chip.dataset.copyId;
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(id).then(()=>{
+            const original = chip.textContent;
+            chip.textContent = 'copied!';
+            setTimeout(()=>{ chip.textContent = original; }, 900);
+          }).catch(()=>{});
+        }
+      });
+    });
 
-   table.querySelectorAll('button[data-file-id]').forEach(btn => {
-     btn.addEventListener('click', () => {
-       openFilePreview(btn.dataset.fileId);
-     });
-   });
+    table.querySelectorAll('button[data-file-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openFilePreview(btn.dataset.fileId);
+      });
+    });
  }
 
  document.getElementById('filesCount').textContent = `${rows.length} files shown`;
@@ -1747,10 +1779,10 @@ async function openFilePreview(fileId){
 
  let result;
  try{
-   result = await safeFetch(`/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=preview`);
+    result = await safeFetch(`/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=preview`);
  } catch(e){
-   body.innerHTML='<div class="empty-state">Could not reach the collector.</div>';
-   return;
+    body.innerHTML='<div class="empty-state">Could not reach the collector.</div>';
+    return;
  }
 
  const meta = result.metadata || {};
@@ -1767,25 +1799,25 @@ async function openFilePreview(fileId){
   </div>`;
 
  if(!result.fetched){
-   body.innerHTML = metaGrid + `
-     <h5>Content</h5>
-     <div class="empty-state">Not fetched: ${result.reason||'unknown reason'}</div>
-     <div class="modal-actions">
-       <a class="btn small" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Try Download</a>
-     </div>`;
-   return;
+    body.innerHTML = metaGrid + `
+      <h5>Content</h5>
+      <div class="empty-state">Not fetched: ${result.reason||'unknown reason'}</div>
+      <div class="modal-actions">
+        <a class="btn small" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Try Download</a>
+      </div>`;
+    return;
  }
 
  const contentBlock = result.textContent !== undefined && result.textContent !== null
-   ? `<pre>${result.textContent.replace(/</g,'&lt;')}</pre>`
-   : `<div class="empty-state">${result.note || 'Binary content \u2014 use Download to retrieve raw bytes.'}</div>`;
+    ? `<pre>${result.textContent.replace(/</g,'&lt;')}</pre>`
+    : `<div class="empty-state">${result.note || 'Binary content \u2014 use Download to retrieve raw bytes.'}</div>`;
 
  body.innerHTML = metaGrid + `
-   <h5>Content <span class="count-pill">${result.contentType||''} &middot; ${formatBytes(result.sizeBytes)}</span></h5>
-   ${contentBlock}
-   <div class="modal-actions">
-     <a class="btn small primary" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Download</a>
-   </div>`;
+    <h5>Content <span class="count-pill">${result.contentType||''} &middot; ${formatBytes(result.sizeBytes)}</span></h5>
+    ${contentBlock}
+    <div class="modal-actions">
+      <a class="btn small primary" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Download</a>
+    </div>`;
 }
 
 document.getElementById('fileModalClose').addEventListener('click', ()=>{
@@ -1796,8 +1828,8 @@ document.getElementById('fileModalBackdrop').addEventListener('click', (e)=>{
 });
 
 /* ============================================================
-   STND Defined Events (grouped)
-   ============================================================ */
+    STND Defined Events (non-alarm only — alarms live on the Alarms tab)
+    ============================================================ */
 const STND_TYPE_LABELS = {
   notifyNewAlarm: 'New Alarm',
   notifyClearedAlarm: 'Cleared Alarm',
@@ -1814,103 +1846,76 @@ function resolveStndType(e){
   if(Array.isArray(data.fileInfoList) || eventName.includes('file-ready') || eventName.includes('fileready')) return 'notifyFileReady';
   if(eventName.includes('notifypnfregistration')) return 'notifyPNFRegistration';
   if(eventName.includes('thresholdcrossingalert')) return 'notifyNewAlarm';
+  if(data.probableCause !== undefined || data.perceivedSeverity !== undefined) return 'notifyNewAlarm';
   return 'unknown';
 }
+
+function isStndAlarmType(type){
+  return type === 'notifyNewAlarm' || type === 'notifyClearedAlarm';
+}
+
+function isStndRedirectedType(type){
+  return isStndAlarmType(type) || type === 'notifyFileReady' || type === 'notifyPNFRegistration';
+}
+
+const STND_REDIRECT_TARGET = {
+  notifyNewAlarm: 'Alarms tab',
+  notifyClearedAlarm: 'Alarms tab',
+  notifyFileReady: 'Files tab',
+  notifyPNFRegistration: 'PNF Registration tab'
+};
 
 function explorerDomainSubTag(event){
   if(event.domain !== 'stndDefined') return '';
   const type = resolveStndType(event);
   const label = STND_TYPE_LABELS[type] || 'Unknown';
-  return ` <span class="count-pill" style="font-size:10px; padding:2px 6px; margin-left:4px; vertical-align:middle;">${label}</span>`;
+  const target = STND_REDIRECT_TARGET[type];
+  const suffix = target ? ` &rarr; ${target}` : '';
+  return ` <span class="count-pill" style="font-size:10px; padding:2px 6px; margin-left:4px; vertical-align:middle;">${label}${suffix}</span>`;
 }
 
-function renderStnd(){
-  const search = (document.getElementById('stndSearch').value || '').toLowerCase();
-  const typeFilter = document.getElementById('stndTypeFilter').value;
+/* ============================================================
+    Alarm Correlation (fault + stndDefined notifyNewAlarm/notifyClearedAlarm + thresholdCrossingAlert)
+    ============================================================ */
 
-  const stndEvents = cachedEvents.filter(e => e.domain === 'stndDefined');
-  document.getElementById('stndCountPill').textContent = `${stndEvents.length} events`;
-
-  const filtered = stndEvents.filter(e => {
-    const type = resolveStndType(e);
-    if(typeFilter && type !== typeFilter) return false;
-    const text = ((e.sourceName||'') + ' ' + (e.eventName||'')).toLowerCase();
-    if(search && !text.includes(search)) return false;
-    return true;
-  });
-
-  const groups = {};
-  filtered.forEach(e => {
-    const type = resolveStndType(e);
-    (groups[type] = groups[type] || []).push(e);
-  });
-
-  const typeOrder = ['notifyNewAlarm','notifyClearedAlarm','notifyFileReady','notifyPNFRegistration','unknown'];
-  const container = document.getElementById('stndGroups');
-
-  const sections = typeOrder.filter(t => groups[t]?.length).map(type => {
-    const items = groups[type].sort((a,b) => new Date(b.receivedAt||0) - new Date(a.receivedAt||0));
-    const rows = items.map(e => `
-      <tr data-id="${e.collectorId}">
-        <td>${e.receivedAt||'-'}</td>
-        <td>${e.sourceName||'-'}</td>
-        <td>${e.eventName||'-'}</td>
-        <td>${e.priority||'-'}</td>
-      </tr>`).join('');
-
-    return `
-      <div class="panel">
-        <h3><span class="badge stndDefined">${STND_TYPE_LABELS[type]}</span> <span class="count-pill">${items.length}</span></h3>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Time</th><th>Source</th><th>Event Name</th><th>Priority</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </div>`;
-  });
-
-  container.innerHTML = sections.length
-    ? sections.join('')
-    : '<div class="panel"><div class="empty-state">No stndDefined events match the current filters.</div></div>';
-
-  container.querySelectorAll('tr[data-id]').forEach(row => {
-    row.addEventListener('click', () => {
-      const ev = filtered.find(e => e.collectorId === row.dataset.id);
-      if(ev){
-        switchView('explorer');
-        showEvent(ev);
-      }
-    });
-  });
+function normalizeStndSeverity(rawSeverity, type){
+  const sev = (rawSeverity || '').toString().toUpperCase();
+  if(type === 'notifyClearedAlarm') return 'CLEARED';
+  if(sev === 'CRITICAL') return 'CRITICAL';
+  if(sev === 'MAJOR') return 'MAJOR';
+  if(sev === 'MINOR' || sev === 'WARNING') return 'WARNING';
+  if(sev === 'CLEARED' || sev === 'NORMAL') return 'CLEARED';
+  if(sev === 'INDETERMINATE' || sev === '') return 'WARNING';
+  return 'WARNING';
 }
-
-document.getElementById('stndSearch').addEventListener('input', renderStnd);
-document.getElementById('stndTypeFilter').addEventListener('change', renderStnd);
 
 function computeAlarmGroups(){
  const groups = {};
 
  cachedEvents.forEach(e=>{
     const raw = e.raw || {};
-    let key=null, severity=null, condition=null, domain=e.domain;
+    let key=null, severity=null, condition=null, domain=e.domain, extra=null;
 
     if(e.domain==='fault'){
       const ff = raw.faultFields || {};
       condition = ff.alarmCondition || 'Unknown Condition';
       severity = (ff.eventSeverity||'WARNING').toUpperCase();
       key = `${e.sourceName}::fault::${condition}`;
-    } else if(e.domain==='stndDefined' && raw.stndDefinedFields?.measurementName){
-      const sf = raw.stndDefinedFields;
-      condition = sf.measurementName;
-      severity = (sf.eventSeverity||'MAJOR').toUpperCase();
-      if(severity==='NORMAL') severity='CLEARED';
+      extra = { specificProblem: ff.specificProblem, eventCategory: ff.eventCategory, vfStatus: ff.vfStatus };
+    } else if(e.domain==='stndDefined'){
+      const type = resolveStndType(e);
+      if(!isStndAlarmType(type)) return;
+      const data = raw.stndDefinedFields?.data || {};
+      condition = data.probableCause || raw.stndDefinedFields?.notificationFields?.notificationType || e.eventName || 'Unknown Condition';
+      severity = normalizeStndSeverity(data.perceivedSeverity, type);
       key = `${e.sourceName}::stnd::${condition}`;
+      extra = { probableCause: data.probableCause, additionalText: data.additionalText, alarmId: data.alarmId, notificationType: type };
     } else if(e.domain==='thresholdCrossingAlert'){
       const tf = raw.thresholdCrossingAlertFields || {};
       condition = tf.indicatorName || 'Threshold Breach';
       severity = 'MAJOR';
       key = `${e.sourceName}::tca::${condition}`;
+      extra = { thresholdCrossed: tf.thresholdCrossed, possibleHostName: tf.possibleHostName };
     } else {
       return;
     }
@@ -1918,13 +1923,13 @@ function computeAlarmGroups(){
     if(!groups[key]){
       groups[key] = {
         key, device:e.sourceName, condition, domain,
-        severity, firstSeen:e.receivedAt, lastSeen:e.receivedAt, occurrences:0
+        severity, firstSeen:e.receivedAt, lastSeen:e.receivedAt, occurrences:0, extra
       };
     }
     const g = groups[key];
     g.occurrences += 1;
     if(e.receivedAt < g.firstSeen) g.firstSeen = e.receivedAt;
-    if(e.receivedAt >= g.lastSeen){ g.lastSeen = e.receivedAt; g.severity = severity; }
+    if(e.receivedAt >= g.lastSeen){ g.lastSeen = e.receivedAt; g.severity = severity; g.extra = extra; }
  });
 
  return Object.values(groups).sort((a,b)=>{
@@ -1934,6 +1939,11 @@ function computeAlarmGroups(){
     if(rd!==0) return rd;
     return new Date(b.lastSeen) - new Date(a.lastSeen);
  });
+}
+
+function severityRank(sev){
+  const ranks = { CRITICAL: 4, MAJOR: 3, WARNING: 2, CLEARED: 1 };
+  return ranks[sev] || 0;
 }
 
 function saveAcks(){ localStorage.setItem('vesAckedAlarms', JSON.stringify([...ackedAlarms])); }
@@ -2080,8 +2090,12 @@ function findAlarmEvents(group){
       const ff = raw.faultFields || {};
       return (ff.alarmCondition || 'Unknown Condition') === group.condition;
     }
-    if(group.domain==='stndDefined' && e.domain==='stndDefined' && raw.stndDefinedFields?.measurementName){
-      return raw.stndDefinedFields.measurementName === group.condition;
+    if(group.domain==='stndDefined' && e.domain==='stndDefined'){
+      const type = resolveStndType(e);
+      if(!isStndAlarmType(type)) return false;
+      const data = raw.stndDefinedFields?.data || {};
+      const condition = data.probableCause || raw.stndDefinedFields?.notificationFields?.notificationType || e.eventName || 'Unknown Condition';
+      return condition === group.condition;
     }
     if(group.domain==='thresholdCrossingAlert' && e.domain==='thresholdCrossingAlert'){
       const tf = raw.thresholdCrossingAlertFields || {};
@@ -2089,6 +2103,15 @@ function findAlarmEvents(group){
     }
     return false;
   }).sort((a,b)=> new Date(b.receivedAt||0) - new Date(a.receivedAt||0));
+}
+
+function alarmExtraDetailRows(group){
+  const extra = group.extra || {};
+  const entries = Object.entries(extra).filter(([,v]) => v !== undefined && v !== null && v !== '');
+  if(entries.length === 0) return '';
+  return entries.map(([k,v]) => `
+    <div class="modal-stat"><p>${k}</p><h4>${v}</h4></div>
+  `).join('');
 }
 
 function openAlarmModal(key, groups){
@@ -2118,6 +2141,7 @@ function openAlarmModal(key, groups){
       <div class="modal-stat"><p>First Seen</p><h4>${group.firstSeen||'&mdash;'}</h4></div>
       <div class="modal-stat"><p>Last Seen</p><h4>${group.lastSeen||'&mdash;'}</h4></div>
       <div class="modal-stat"><p>Acknowledged</p><h4>${acked ? 'Yes' : 'No'}</h4></div>
+      ${alarmExtraDetailRows(group)}
     </div>`;
 
   const latestRawBlock = latest
@@ -2162,36 +2186,36 @@ function updateNavBadges(groups){
  const g = groups || computeAlarmGroups();
  const openCount = g.filter(x=>x.severity!=='CLEARED' && !ackedAlarms.has(x.key)).length;
  const badge = document.getElementById('navAlarmBadge');
- badge.textContent = openCount;
- badge.classList.toggle('alert', openCount>0);
- document.getElementById('navDeviceBadge').textContent = cachedDevices.length;
- document.getElementById('navFilesBadge').textContent = cachedFiles.length;
+ if (badge) {
+   badge.textContent = openCount;
+   badge.classList.toggle('alert', openCount>0);
+ }
+ const filesBadge = document.getElementById('navFilesBadge');
+ if (filesBadge) filesBadge.textContent = cachedFiles.length;
  const pnfBadge = document.getElementById('navPnfBadge');
  if (pnfBadge) pnfBadge.textContent = cachedPNFs.length;
- const stndBadge = document.getElementById('navStndBadge');
- if (stndBadge) stndBadge.textContent = cachedEvents.filter(e=>e.domain==='stndDefined').length;
 }
 
 /* ============================================================
-   Toasts for new critical faults
-   ============================================================ */
+    Toasts for New Critical Faults
+    ============================================================ */
 function checkForCriticalToasts(){
  const criticals = cachedEvents.filter(e=>{
-   if(e.domain!=='fault') return false;
-   const sev=(e.raw?.faultFields?.eventSeverity||'').toUpperCase();
-   return sev==='CRITICAL';
+    if(e.domain!=='fault') return false;
+    const sev=(e.raw?.faultFields?.eventSeverity||'').toUpperCase();
+    return sev==='CRITICAL';
  });
 
  if(firstLoad){
-   criticals.forEach(e=>toastedEventIds.add(e.collectorId));
-   firstLoad = false;
-   return;
+    criticals.forEach(e=>toastedEventIds.add(e.collectorId));
+    firstLoad = false;
+    return;
  }
 
  criticals.forEach(e=>{
-   if(toastedEventIds.has(e.collectorId)) return;
-   toastedEventIds.add(e.collectorId);
-   showToast(e);
+    if(toastedEventIds.has(e.collectorId)) return;
+    toastedEventIds.add(e.collectorId);
+    showToast(e);
  });
 }
 
@@ -2205,19 +2229,34 @@ function showToast(event){
  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(12px)'; setTimeout(()=>el.remove(),250); }, 6000);
 }
 
+function liveState(lastSeen){
+  if(!lastSeen) return { cls: 'stale', label: 'Offline', signal: 0 };
+  const ageSec = (Date.now() - new Date(lastSeen).getTime()) / 1000;
+  if(ageSec < 60) return { cls: 'live', label: 'Live', signal: 4 };
+  if(ageSec < 300) return { cls: 'idle', label: 'Idle', signal: 2 };
+  return { cls: 'stale', label: 'Stale', signal: 1 };
+}
+
+function timeAgo(dateStr){
+  if(!dateStr) return 'never';
+  const sec = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if(sec < 60) return `${sec}s ago`;
+  if(sec < 3600) return `${Math.floor(sec/60)}m ago`;
+  if(sec < 86400) return `${Math.floor(sec/3600)}h ago`;
+  return `${Math.floor(sec/86400)}d ago`;
+}
+
 /* ============================================================
-   Master refresh loop
-   ============================================================ */
+    Master Refresh Loop
+    ============================================================ */
 async function refresh(){
  await loadStats();
  await loadEvents();
  await loadDevices();
  await loadPNFs();
  await loadFiles();
- if(currentView === 'cm') await loadCM();
 
  renderAlarms();
- renderStnd();
 }
 
 refresh();

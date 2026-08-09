@@ -1,14 +1,13 @@
 from flask import Blueprint, request, jsonify
-from services.netconf_service import NetconfManager
+from services.netconf_service import netconf_service as netconf
 
 cm_bp = Blueprint("cm", __name__, url_prefix="/api/cm")
-netconf = NetconfManager()
 
 
 def _resolve_device_id(data=None):
     if data and isinstance(data, dict) and data.get("device_id"):
         return data["device_id"]
-    if netconf.sessions:
+    if getattr(netconf, "sessions", None):
         return next(iter(netconf.sessions))
     return None
 
@@ -26,7 +25,8 @@ def connect():
             host=data["host"],
             port=int(data.get("port", 830)),
             username=data["username"],
-            key_filename=data.get("key_filename")
+            key_filename=data.get("key_filename"),
+            key_passphrase=data.get("key_passphrase")
         )
         return jsonify(res), 200
     except Exception as e:
@@ -35,10 +35,10 @@ def connect():
 
 @cm_bp.route("/sessions", methods=["GET"])
 def list_sessions():
-    return jsonify({"connected_devices": list(netconf.sessions.keys())}), 200
+    sessions = getattr(netconf, "sessions", {})
+    return jsonify({"connected_devices": list(sessions.keys())}), 200
 
 
-# 1. FIX FOR STEP 3: Add missing capabilities route
 @cm_bp.route("/capabilities/<device_id>", methods=["GET"])
 def capabilities(device_id):
     try:
@@ -94,7 +94,6 @@ def manage_config():
             return jsonify({"error": "Missing 'config' XML payload"}), 400
 
         try:
-            # FIX: Key is named 'config', not 'config_xml'
             edit_res = netconf.edit_config(
                 device_id, 
                 config=config_payload, 
@@ -109,6 +108,7 @@ def manage_config():
             }), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
 
 @cm_bp.route("/validate", methods=["POST"])
 def validate_config():
