@@ -172,8 +172,7 @@ class NetconfManager:
                             matching_nodes.append(child)
                             break
 
-                # Device Isolation Filter: If ves-pnf-registration is requested and device_id is a specific serial number,
-                # extract only the <pnf> element matching <serial-number> == device_id
+                # Device Isolation Filter: Safely check for matching serial numbers if present
                 if clean_module == "ves-pnf-registration" and device_id and device_id != "local-netopeer":
                     filtered_pnf = []
                     for child in matching_nodes:
@@ -226,7 +225,6 @@ class NetconfManager:
             reply = session.edit_config(target=target, config=config_xml, default_operation=default_operation)
             return reply.xml
         except RPCError as exc:
-            # Fallback to target="running" if candidate is disabled
             if target == "candidate":
                 try:
                     reply = session.edit_config(target="running", config=config_xml, default_operation=default_operation)
@@ -280,7 +278,6 @@ class NetconfManager:
 
 
 def _esc(value):
-    """Escape a value for safe inclusion inside XML element text."""
     return (
         str(value if value is not None else "")
         .replace("&", "&amp;")
@@ -292,9 +289,6 @@ def _esc(value):
 
 
 def build_pnf_edit_config_xml(pnf: dict) -> str:
-    """
-    Build NETCONF edit-config payload for PNF Registration.
-    """
     serial = _esc(pnf.get("serialNumber") or "UNKNOWN")
 
     return f"""
@@ -327,9 +321,6 @@ def forward_pnf_netconf(
     key_filename: str,
     timeout: int = 10,
 ) -> str:
-    """
-    Sends a single PNF record to Netopeer2 server via NETCONF edit-config.
-    """
     config_xml = build_pnf_edit_config_xml(pnf)
 
     if not key_filename:
@@ -367,5 +358,4 @@ def forward_pnf_netconf(
         raise RuntimeError(f"NETCONF connection/edit-config failed: {exc}") from exc
 
 
-# Global shared instance for application-wide use
 netconf_service = NetconfManager()

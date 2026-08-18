@@ -674,6 +674,32 @@ let currentCmModules = [];
 let cmPollingInterval = null;
 let expandedNodePaths = new Set(); // Stores expanded node paths across re-renders
 
+/* ------------------------------------------------------------
+   CM Module Allowlist — controlled here in code only, never
+   editable from the UI.
+   - Leave CM_ALLOWED_MODULES as an empty array [] to show ALL
+     modules Netopeer2 reports (no filtering).
+   - To restrict the "Installed YANG Modules" panel + the YANG
+     Module dropdown to a specific set, add the exact module
+     names (as returned by /api/cm/modules, e.g. "name" field)
+     to this array.
+   ------------------------------------------------------------ */
+const CM_ALLOWED_MODULES = [
+   'ves-pnf-registration',
+   'ietf-netconf',
+];
+
+function isCmModuleAllowed(moduleName) {
+  if (!CM_ALLOWED_MODULES || CM_ALLOWED_MODULES.length === 0) return true;
+  return CM_ALLOWED_MODULES.includes(moduleName);
+}
+
+function filterCmModules(modules) {
+  if (!Array.isArray(modules)) return [];
+  if (!CM_ALLOWED_MODULES || CM_ALLOWED_MODULES.length === 0) return modules;
+  return modules.filter(m => isCmModuleAllowed(m.name));
+}
+
 function startCmAutoPolling() {
   stopCmAutoPolling();
   cmPollingInterval = setInterval(() => {
@@ -704,7 +730,7 @@ function togglePinModule(event, moduleName) {
 }
 
 function renderCmModules(modules) {
-  currentCmModules = modules || [];
+  currentCmModules = filterCmModules(modules);
   const container = document.getElementById('cmModuleList');
   const countBadge = document.getElementById('cmModuleCount');
 
@@ -715,10 +741,14 @@ function renderCmModules(modules) {
   }
 
   if (!currentCmModules || currentCmModules.length === 0) {
-    container.innerHTML = `
-      <div style="padding: 1rem; text-align: center; color: var(--text-muted);">
-        No active modules found on Netopeer2.
-      </div>`;
+    const hasHiddenModules = Array.isArray(modules) && modules.length > 0;
+    container.innerHTML = hasHiddenModules
+      ? `<div style="padding: 1rem; text-align: center; color: var(--text-muted);">
+          All ${modules.length} installed module(s) are hidden by the CM_ALLOWED_MODULES allowlist.
+        </div>`
+      : `<div style="padding: 1rem; text-align: center; color: var(--text-muted);">
+          No active modules found on Netopeer2.
+        </div>`;
     return;
   }
 
@@ -830,7 +860,8 @@ async function loadCM() {
       deviceSelect.value = activeCmDevice;
     }
 
-    const modules = await safeFetch(`/api/cm/modules?device_id=${encodeURIComponent(activeCmDevice)}`);
+    const modulesRaw = await safeFetch(`/api/cm/modules?device_id=${encodeURIComponent(activeCmDevice)}`);
+    const modules = filterCmModules(modulesRaw);
 
     if (Array.isArray(modules) && modules.length > 0) {
       if (moduleSelect) {
@@ -845,6 +876,9 @@ async function loadCM() {
         fetchCmConfig('ves-pnf-registration');
         return;
       }
+    } else if (moduleSelect) {
+      moduleSelect.innerHTML = '<option value="">All Modules (Full Config)</option>';
+      renderCmModules(modulesRaw);
     }
 
     fetchCmConfig();
