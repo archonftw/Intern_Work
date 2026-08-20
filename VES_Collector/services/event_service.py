@@ -1,18 +1,17 @@
-# Library imports
 import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict
 from jsonschema import validate
 
-# Custom imports
-from storage.memory import EVENT_STORE
+# Custom imports - remove EVENT_STORE from memory storage
 from services.pnf_service import process_pnf_registration
 from services.validation import validate_domain
 from services.device_service import update_device
 from services.stnd_service import process_stnd
 from config import MAX_GLOBAL_EVENT_STORE
 from services.validation import _resolve_stnd_type
+from services.db_service import save_event_to_db
 
 logger = logging.getLogger("VES-COLLECTOR")
 
@@ -24,18 +23,18 @@ def process_event(event):
         process_pnf_registration({"event": event})
 
     elif domain == "stndDefined":
-        # First, run the generic standard-defined handler if you need it for logs/other states
         process_stnd(event)
-        
-        # Second, resolve what kind of 3GPP event this actually is
         resolved_type = _resolve_stnd_type(event)
         
         if resolved_type == "notifyPNFRegistration":
             logger.info("Routing standard-defined PNF registration to PNF processor")
-            # Wrap it up in the {"event": event} envelope that your updated process_pnf_registration expects!
             process_pnf_registration({"event": event})
 
+
 def store_event(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Persists the incoming VES event directly into PostgreSQL via db_service.
+    """
     header = event.get("commonEventHeader", {})
 
     enriched = {
@@ -49,10 +48,14 @@ def store_event(event: Dict[str, Any]) -> Dict[str, Any]:
         "raw": event
     }
 
-    EVENT_STORE.append(enriched)
-
-    if len(EVENT_STORE) > MAX_GLOBAL_EVENT_STORE:
-        del EVENT_STORE[: len(EVENT_STORE) - MAX_GLOBAL_EVENT_STORE]
+    # Save directly to PostgreSQL database instead of memory list
+    try:
+        # Wrap the event back into the expected envelope if necessary
+        payload_to_save = event if "event" in event else {"event": event}
+        save_event_to_db(payload_to_save)
+    except Exception as e:
+        logger.error("Failed to persist event to database in store_event: %s", e)
+        raise e
 
     logger.info(
         "EVENT | domain=%s | id=%s | source=%s",

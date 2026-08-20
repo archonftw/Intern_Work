@@ -2,29 +2,15 @@ import io
 import logging
 
 from flask import Blueprint, request, jsonify, abort, send_file
-
+from services.db_service import get_db_connection, release_db_connection
+from psycopg2.extras import RealDictCursor
 from services.file_ready_service import (
-    list_file_entries,
-    get_file_entry,
     fetch_file_content,
     FileFetchError,
 )
+from storage import memory as storage_memory
 
 logger = logging.getLogger("VES-COLLECTOR")
-
-# Same base path as the real VES ingestion endpoint (POST /eventListener/v7,
-# owned by routes/ingestion.py). That's safe: Flask dispatches by
-# (path, method), and this blueprint only ever registers GET here, so
-# there's no collision with the POST handler.
-#
-# No ingest route in this file - fileReady events arrive through the
-# existing pipeline: /eventListener/v7 (POST) -> process_single_event ->
-# process_stnd -> handle_file_ready (see services/stnd_service.py).
-# This blueprint is read-only, and deliberately a single URL:
-#   GET /eventListener/v7                          -> list files
-#   GET /eventListener/v7?file_id=X                -> one file's metadata
-#   GET /eventListener/v7?file_id=X&action=preview  -> fetch + preview
-#   GET /eventListener/v7?file_id=X&action=download -> fetch + download
 
 filereferences_bp = Blueprint(
     "filereferences",
@@ -39,11 +25,13 @@ def file_references():
 
     if not file_id:
         source_name = request.args.get("sourceName")
-        limit = request.args.get("limit", 100)
-        entries = list_file_entries(source_name=source_name, limit=limit)
+        limit = int(request.args.get("limit", 100))
+        
+        # Fetch file references from PostgreSQL stored stndDefined events
+        entries = _list_file_entries_from_db(source_name=source_name, limit=limit)
         return jsonify({"count": len(entries), "entries": entries})
 
-    entry = get_file_entry(file_id)
+    entry = _get_file_entry_from_db(file_id)
     if entry is None:
         abort(404, description="No such file entry found")
 
@@ -59,6 +47,85 @@ def file_references():
         return _download(entry)
 
     return jsonify({"error": f"Unknown action '{action}'. Use 'preview' or 'download'."}), 400
+
+
+def _list_file_entries_from_db(source_name=None, limit=100):
+    """
+    Extracts fileReady details from stndDefined events stored in PostgreSQL.
+    """
+    conn = get_db_connection()
+    if not conn:
+        # Fallback to in-memory FILE_STORE
+        entries = []
+        for finfo in storage_memory.FILE_STORE[:limit]:
+            entries.append({
+                "fileId": finfo.get("fileId"),
+                "receivedAt": finfo.get("receivedAt"),
+                "sourceName": finfo.get("sourceName"),
+                "fileFormat": finfo.get("fileFormat"),
+                "fileDataType": finfo.get("fileDataType"),
+                "fileSize": finfo.get("fileSize"),
+                "fileReadyTime": finfo.get("fileReadyTime"),
+                "fileExpirationTime": finfo.get("fileExpirationTime"),
+                "fileLocation": finfo.get("fileLocation")
+            })
+        return entries
+
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            query = """
+                SELECT received_at, source_name, raw_payload 
+                FROM ves_events 
+                WHERE domain = 'stndDefined'
+            """
+            params = []
+            if source_name:
+                query += " AND source_name = %s"
+                params.append(source_name)
+
+            query += " ORDER BY received_at DESC LIMIT %s"
+            params.append(limit)
+
+            cur.execute(query, tuple(params))
+            rows = cur.fetchall()
+
+            entries = []
+            for row in rows:
+                raw = row["raw_payload"]
+                stnd = raw.get("stndDefinedFields", {})
+                data = stnd.get("data", {})
+                
+                # Check for fileInfoList or fileReady attributes
+                file_info_list = data.get("fileInfoList", [])
+                if not file_info_list and ("fileId" in data or "fileLocation" in data):
+                    file_info_list = [data]
+
+                for finfo in file_info_list:
+                    entries.append({
+                        "fileId": finfo.get("fileId"),
+                        "receivedAt": row["received_at"].isoformat() if row["received_at"] else None,
+                        "sourceName": row["source_name"],
+                        "fileFormat": finfo.get("fileFormat"),
+                        "fileDataType": finfo.get("fileDataType"),
+                        "fileSize": finfo.get("fileSize"),
+                        "fileReadyTime": finfo.get("fileReadyTime"),
+                        "fileExpirationTime": finfo.get("fileExpirationTime"),
+                        "fileLocation": finfo.get("fileLocation")
+                    })
+            return entries
+    except Exception as e:
+        logger.error("Failed to list file entries from DB: %s", e)
+        return []
+    finally:
+        release_db_connection(conn)
+
+
+def _get_file_entry_from_db(file_id):
+    entries = _list_file_entries_from_db(limit=500)
+    for entry in entries:
+        if entry.get("fileId") == file_id:
+            return entry
+    return None
 
 
 def _preview(file_id, entry):

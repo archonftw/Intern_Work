@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from jsonschema import ValidationError
 from services.event_service import process_single_event
+import json
 import logging
 
 logger = logging.getLogger("VES-COLLECTOR")
@@ -15,11 +16,14 @@ ingestion_bp = Blueprint(
 
 @ingestion_bp.route("/eventListener/v7", methods=["POST"])
 def ingest_event():
+    #This function collects the incoming data events at the endpoint /eventListener/v7
     if not request.is_json:
         return error(415, "Expected JSON")
 
     try:
         body = request.get_json()
+        print("Events recieved Successfully")
+        print(json.dumps(body,indent=2))
     except Exception:
         return error(400, "Invalid JSON")
 
@@ -27,18 +31,19 @@ def ingest_event():
         return error(400, "Expected a JSON object")
 
     try:
+        # 1. Validate schema / process rules / save perfectly into PostgreSQL
+        # (This handles the DB insertion internally now)
         process_single_event(body)
     except ValidationError as e:
         return error(400, f"Schema error: {e.message}")
     except Exception:
-        logger.exception("Unexpected error processing event")
+        logger.exception("Unexpected error processing/saving event")
         return error(500, "Internal processing error")
 
     return "", 202
 
 
-@ingestion_bp.route("/eventListener/v7/eventBatch", methods=["POST"])
-def ingest_batch():
+
     if not request.is_json:
         return error(415, "Expected JSON")
 
@@ -61,7 +66,10 @@ def ingest_batch():
         try:
             if not isinstance(single_event_body, dict):
                 raise ValidationError("Batch item must be a JSON object")
+            
+            # Processes and saves to DB internally
             process_single_event(single_event_body)
+            
         except ValidationError as e:
             errors.append({"index": idx, "error": e.message})
         except Exception:
@@ -69,8 +77,6 @@ def ingest_batch():
             errors.append({"index": idx, "error": "Internal processing error"})
 
     if errors:
-        # Partial or total failure: still 202 if some events succeeded,
-        # but surface which items failed so the sender can retry just those.
         accepted = len(event_list) - len(errors)
         return jsonify({
             "accepted": accepted,

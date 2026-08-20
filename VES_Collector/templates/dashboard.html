@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VES Collector NOC Console</title>
+<title>VES Collector NOC Console &middot; Heartbeat Monitoring Suite</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <style>
 /* ============================================================
-    CM Module List & Pinning Custom Styles
+    CM Module List, Pinning & Heartbeat Custom Styles
     ============================================================ */
 .cm-module-list {
   display: flex;
@@ -89,6 +89,42 @@
 .cm-pin-btn.is-pinned {
   color: #38edf8;
 }
+
+/* Heartbeat Advanced UI Enhancements */
+.hb-health-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.hb-health-pill.healthy { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
+.hb-health-pill.delayed { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+.hb-health-pill.offline { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+.hb-health-pill.unknown { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); }
+
+.hb-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color, #2d3748);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+}
+.hb-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.hb-tab-btn:hover { color: #f8fafc; background: rgba(255, 255, 255, 0.05); }
+.hb-tab-btn.active { color: #38edf8; background: rgba(56, 237, 248, 0.1); }
 </style>
 </head>
 <body>
@@ -102,6 +138,7 @@
     </div>
     <div class="conn-status" id="connStatus">CONNECTED</div>
     <ul class="nav-list">
+      <li><button class="nav-item active" data-view="overview"><span class="nav-icon">&#9635;</span><span class="nav-label">Overview</span></button></li>
       <li>
         <button class="nav-item" data-view="cm">
           <span class="nav-icon">&#9881;</span>
@@ -109,13 +146,13 @@
           <span class="nav-badge" id="navCmBadge">0</span>
         </button>
       </li>
-      <li><button class="nav-item active" data-view="overview"><span class="nav-icon">&#9635;</span><span class="nav-label">Overview</span></button></li>
-      <li><button class="nav-item" data-view="alarms"><span class="nav-icon">&#9650;</span><span class="nav-label">FM</span><span class="nav-badge alert" id="navAlarmBadge">0</span></button></li>
-      <li><button class="nav-item" data-view="pnf"><span class="nav-icon">&#9889;</span><span class="nav-label">PNF Registration</span><span class="nav-badge" id="navPnfBadge">0</span></button></li>
       <li><button class="nav-item" data-view="files"><span class="nav-icon">&#8862;</span><span class="nav-label">PM</span><span class="nav-badge" id="navFilesBadge">0</span></button></li>
+      <li><button class="nav-item" data-view="heartbeat"><span class="nav-icon">&#9829;</span><span class="nav-label">Heartbeat</span><span class="nav-badge" id="navHeartbeatBadge">0</span></button></li>
       <li><button class="nav-item" data-view="explorer"><span class="nav-icon">&#9638;</span><span class="nav-label">Event Explorer</span></button></li>
+      <li><button class="nav-item" data-view="pnf"><span class="nav-icon">&#9889;</span><span class="nav-label">PNF Registration</span><span class="nav-badge" id="navPnfBadge">0</span></button></li>
+      <li><button class="nav-item" data-view="alarms"><span class="nav-icon">&#9650;</span><span class="nav-label">FM</span><span class="nav-badge alert" id="navAlarmBadge">0</span></button></li>
     </ul>
-    <div class="sidebar-foot">Single-instance collector<br>In-memory store (session only)</div>
+    <div class="sidebar-foot">Single-instance collector<br>PostgreSQL Persistent Store</div>
   </aside>
 
   <div class="main">
@@ -181,99 +218,9 @@
 
       </section>
 
-      <section class="view-panel" id="view-alarms">
-
-        <div class="panel">
-          <h3>Alarm Correlation</h3>
-          <p class="panel-note">Correlated client-side from fault, stndDefined (notifyNewAlarm/notifyClearedAlarm), &amp; threshold events (grouped by device + condition). Not yet persisted server-side &mdash; acknowledgements live in this browser only until a backend alarm store exists.</p>
-
-          <div class="alarm-summary-strip" id="alarmSummaryStrip"></div>
-
-          <div class="controls">
-            <input id="alarmSearch" placeholder="Search device, condition, or domain &middot; space-separate multiple terms" autocomplete="off">
-            <select id="alarmDomainFilter">
-              <option value="">All Domains</option>
-              <option value="fault">fault</option>
-              <option value="stndDefined">stndDefined</option>
-              <option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
-            </select>
-            <select id="alarmSeverityFilter">
-              <option value="">All Severities</option>
-              <option value="CRITICAL">Critical</option>
-              <option value="MAJOR">Major</option>
-              <option value="WARNING">Warning</option>
-              <option value="CLEARED">Cleared</option>
-            </select>
-            <select id="alarmAckFilter">
-              <option value="unacked">Unacknowledged only</option>
-              <option value="all">All alarms</option>
-              <option value="acked">Acknowledged only</option>
-            </select>
-            <select id="alarmTimeRangeFilter">
-              <option value="">All Time</option>
-              <option value="15m">Last 15 min</option>
-              <option value="1h">Last 1 hour</option>
-              <option value="24h">Last 24 hours</option>
-            </select>
-            <button class="btn" id="clearAcksBtn">Clear all acks</button>
-          </div>
-
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th data-sort="severity">Severity <span class="sort-arrow"></span></th>
-                  <th data-sort="device">Device <span class="sort-arrow"></span></th>
-                  <th data-sort="condition">Condition <span class="sort-arrow"></span></th>
-                  <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
-                  <th data-sort="firstSeen">First Seen <span class="sort-arrow"></span></th>
-                  <th data-sort="lastSeen">Last Seen <span class="sort-arrow"></span></th>
-                  <th data-sort="occurrences">Occurrences <span class="sort-arrow"></span></th>
-                  <th>Ack</th>
-                </tr>
-              </thead>
-              <tbody id="alarmsTable"></tbody>
-            </table>
-          </div>
-        </div>
-
-      </section>
-
-      <section class="view-panel" id="view-pnf">
-
-        <div class="panel">
-          <h3>PNF Registration <span class="count-pill" id="pnfCountPill">0 registered</span>
-            <button class="btn small" id="configurePnfForwardBtn">Configure Forwarding &rarr;</button>
-          </h3>
-          <p class="panel-note">Every registered PNF is forwarded automatically to the destination below as soon as it's received &mdash; this panel only controls where forwarded records are sent, not whether forwarding happens.</p>
-
-          <div class="controls">
-            <input id="pnfSearch" placeholder="Search PNF name, vendor, or IP address" autocomplete="off">
-            <select id="pnfVendorFilter">
-              <option value="">All Vendors</option>
-            </select>
-          </div>
-
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th><th>PNF Name</th><th>Vendor</th><th>Model</th>
-                  <th>OAM IP</th><th>Protocol</th><th>Username</th><th>Forward Status</th><th></th>
-                </tr>
-              </thead>
-              <tbody id="pnfsTable"></tbody>
-            </table>
-          </div>
-        </div>
-
-      </section>
-
       <!-- Configuration Management (CM) Section -->
       <section class="view-panel" id="view-cm">
         <div class="panel">
-         
-          <!-- Header Toolbar -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color, #2d3748); padding-bottom: 0.75rem;">
             <div>
               <h3 style="display: inline-flex; align-items: center; gap: 0.5rem; margin: 0;">
@@ -294,7 +241,6 @@
             </div>
           </div>
 
-          <!-- Controls Row -->
           <div class="controls" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;">
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
               <label style="font-size: 12px; color: var(--text-muted);">Datastore:</label>
@@ -313,7 +259,6 @@
             </div>
 
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-              <!-- Editor Mode Switcher -->
               <div style="display: inline-flex; border: 1px solid var(--border-color, #2d3748); border-radius: 4px; overflow: hidden; margin-right: 0.5rem;">
                 <button class="btn small primary" id="cmToggleTreeModeBtn" style="border-radius:0;">Tree View</button>
                 <button class="btn small" id="cmToggleRawModeBtn" style="border-radius:0;">Raw XML</button>
@@ -327,10 +272,7 @@
             </div>
           </div>
 
-          <!-- Main Workspace Grid -->
           <div class="main-grid" style="grid-template-columns: 360px 1fr; gap: 1rem; margin-top: 1rem; align-items: start;">
-            
-            <!-- Left: Installed YANG Modules Browser -->
             <div class="panel" style="padding: 0.75rem; margin: 0; width: 100%; box-sizing: border-box;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
                 <h4 style="margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">
@@ -338,7 +280,6 @@
                 </h4>
                 <span id="cmModuleCount" class="count-pill">0 Loaded</span>
               </div>
-
               <div id="cmModuleList" class="cm-module-list" style="max-height: 540px; overflow-y: auto; padding-right: 4px;">
                 <div style="padding: 1rem; text-align: center; color: var(--text-muted);">
                   No modules loaded. Connect a NETCONF device to inspect modules.
@@ -346,7 +287,6 @@
               </div>
             </div>
 
-            <!-- Right: Interactive Hierarchy Workspace -->
             <div class="panel" style="padding: 0.75rem; margin: 0; display: flex; flex-direction: column;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                 <h4 style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);" id="cmEditorTitle">
@@ -355,37 +295,24 @@
                 <span class="count-pill" id="cmEditorStatePill">Read-Only</span>
               </div>
 
-              <!-- Hierarchical Tree Editor Container -->
-              <div 
-                id="cmTreeContainer" 
-                style="width: 100%; height: 500px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.6; background: #0b0f19; color: #38edf8; border: 1px solid var(--border-color, #2d3748); border-radius: 4px; padding: 12px; overflow: auto; box-sizing: border-box;"
-              >
+              <div id="cmTreeContainer" style="width: 100%; height: 500px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.6; background: #0b0f19; color: #38edf8; border: 1px solid var(--border-color, #2d3748); border-radius: 4px; padding: 12px; overflow: auto; box-sizing: border-box;">
                 <div style="color: var(--text-muted); font-style: italic; text-align: center; padding-top: 40px;">
                   Click "Get Config" or select a module to render the hierarchical configuration tree...
                 </div>
               </div>
 
-              <!-- Raw XML Fallback Area -->
-              <textarea 
-                id="cmConfigOutput" 
-                spellcheck="false" 
-                style="display: none; width: 100%; height: 500px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.5; background: #0b0f19; color: #38edf8; border: 1px solid var(--border-color, #2d3748); border-radius: 4px; padding: 12px; resize: vertical; box-sizing: border-box;"
-                placeholder="Select a module or click 'Get Config' to fetch the Netopeer2 XML datastore..."
-              ></textarea>
+              <textarea id="cmConfigOutput" spellcheck="false" style="display: none; width: 100%; height: 500px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.5; background: #0b0f19; color: #38edf8; border: 1px solid var(--border-color, #2d3748); border-radius: 4px; padding: 12px; resize: vertical; box-sizing: border-box;" placeholder="Select a module or click 'Get Config' to fetch the Netopeer2 XML datastore..."></textarea>
 
               <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; font-size: 11px; color: var(--text-muted);">
                 <span id="cmEditorStatus">Ready</span>
                 <span>Click <strong style="color:var(--text-main, #38edf8);">[ + ]</strong> to expand tags, edit node values directly inline</span>
               </div>
             </div>
-
           </div>
-
         </div>
       </section>
 
       <section class="view-panel" id="view-files">
-
         <div class="panel">
           <h3>File References <span class="count-pill" id="filesCountPill">0 files</span></h3>
           <p class="panel-note">Files announced via fileReady (stndDefined) events. fileLocation points to the network function's file server &mdash; content is fetched on demand when you click Preview, not stored here.</p>
@@ -413,58 +340,281 @@
             <span>Buffer holds last 200 file references</span>
           </div>
         </div>
+      </section>
 
+      <!-- Advanced Heartbeat Monitoring Suite Section -->
+      <section class="view-panel" id="view-heartbeat">
+        <div class="panel">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color, #2d3748); padding-bottom: 0.75rem;">
+            <div>
+              <h3 style="margin: 0;">Heartbeat Telemetry &amp; Health Suite (Per Device)</h3>
+              <p class="panel-note" style="margin: 0.25rem 0 0;">Device-centric real-time health analysis, intervals, source status tracking &amp; alerts (Native &amp; StndDefined).</p>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <button class="btn small" id="openHbConfigModalBtn">&#x2699; Configuration</button>
+              <button class="btn small primary" id="refreshHeartbeatsBtn">&#x21BB; Refresh</button>
+            </div>
+          </div>
+
+          <!-- Heartbeat Summary Cards -->
+          <div class="stats" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-bottom: 1.5rem;">
+            <div class="card"><p>Total Received</p><h2 id="hbTotalCount">0</h2></div>
+            <div class="card"><p>Received Today</p><h2 id="hbTodayCount">0</h2></div>
+            <div class="card"><p>Active Sources / Devices</p><h2 id="hbActiveSourcesCount">0</h2></div>
+            <div class="card"><p>🟢 Healthy</p><h2 id="hbHealthyCount" style="color: #34d399;">0</h2></div>
+            <div class="card"><p>🟡 Delayed</p><h2 id="hbDelayedCount" style="color: #fbbf24;">0</h2></div>
+            <div class="card"><p>🔴 Offline</p><h2 id="hbOfflineCount" style="color: #f87171;">0</h2></div>
+            <div class="card"><p>Current Rate</p><h2 id="hbRateCount" style="font-size: 1.25rem;">0 /min</h2></div>
+          </div>
+
+          <!-- Sub Navigation Tabs for Heartbeat Module -->
+          <div class="hb-tabs">
+            <button class="hb-tab-btn active" data-hbtab="sources">Device Source Health Matrix</button>
+            <button class="hb-tab-btn" data-hbtab="events">Heartbeat Event List</button>
+            <button class="hb-tab-btn" data-hbtab="analytics">Monitoring &amp; Analytics</button>
+            <button class="hb-tab-btn" data-hbtab="alerts">Heartbeat Alerts <span class="count-pill alert" id="hbAlertsCountPill" style="margin-left: 4px;">0</span></button>
+          </div>
+
+          <!-- TAB 1: Source Health Table Grouped By Device -->
+          <div class="hb-tab-pane" id="hbpane-sources">
+            <div class="controls" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+              <input id="hbSourceSearch" placeholder="Search device source name or ID..." autocomplete="off" style="flex: 1; min-width: 200px;">
+              <select id="hbSourceStatusFilter">
+                <option value="">All Health Statuses</option>
+                <option value="Healthy">🟢 Healthy</option>
+                <option value="Delayed">🟡 Delayed</option>
+                <option value="Offline">🔴 Offline</option>
+                <option value="Unknown">⚪ Unknown</option>
+              </select>
+              <select id="hbSourceSortBy">
+                <option value="last_seen_desc">Sort: Last Seen (Newest)</option>
+                <option value="last_seen_asc">Sort: Last Seen (Oldest)</option>
+                <option value="status">Sort: Health Status</option>
+                <option value="total_desc">Sort: Total Heartbeats</option>
+              </select>
+            </div>
+            <div class="table-scroll" style="max-height: 480px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Device Source Name</th>
+                    <th>Health Status</th>
+                    <th>Last Heartbeat</th>
+                    <th>Time Since Last</th>
+                    <th>Expected Interval</th>
+                    <th>Actual / Avg Interval</th>
+                    <th>Total Heartbeats</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="hbSourcesTableBody">
+                  <tr><td colspan="8" class="empty-state">No device heartbeat telemetry captured yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 2: Heartbeat Event List -->
+          <div class="hb-tab-pane" id="hbpane-events" style="display: none;">
+            <div class="controls" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+              <input id="hbEventSearch" placeholder="Search event ID or device source..." autocomplete="off" style="flex: 1; min-width: 200px;">
+              <select id="hbEventSourceFilter">
+                <option value="">All Device Sources</option>
+              </select>
+              <select id="hbEventTimeRange">
+                <option value="">All Time</option>
+                <option value="15m">Last 15 minutes</option>
+                <option value="1h">Last 1 hour</option>
+                <option value="24h">Last 24 hours</option>
+              </select>
+            </div>
+            <div class="table-scroll" style="max-height: 480px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Device Source</th>
+                    <th>Event ID</th>
+                    <th>Type / Domain</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="hbEventsTableBody">
+                  <tr><td colspan="6" class="empty-state">No heartbeat events recorded.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 3: Monitoring & Analytics -->
+          <div class="hb-tab-pane" id="hbpane-analytics" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h4 style="margin: 0; font-size: 14px; color: var(--text-main);">Heartbeat Rate Graph</h4>
+              <select id="hbAnalyticsRangeSelect" style="font-size: 12px; padding: 4px 8px;">
+                <option value="5m">Last 5 Minutes</option>
+                <option value="1h" selected>Last 1 Hour</option>
+                <option value="24h">Last 24 Hours</option>
+              </select>
+            </div>
+            <div class="panel" style="background: #0b0f19; height: 260px; margin-bottom: 1.5rem; position: relative;">
+              <canvas id="hbRateChart"></canvas>
+            </div>
+            <h4 style="margin: 0 0 0.75rem 0; font-size: 14px; color: var(--text-main);">Selected Device Interval Analysis &amp; Status History</h4>
+            <div class="panel" style="background: #0b0f19; padding: 1rem;" id="hbAnalyticsDetailPanel">
+              <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+                Click a device row in the "Device Source Health Matrix" to inspect its interval analysis, downtime metrics, and status transition timeline.
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: Heartbeat Alerts -->
+          <div class="hb-tab-pane" id="hbpane-alerts" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h4 style="margin: 0; font-size: 14px; color: var(--text-main);">Active &amp; Historical Device Heartbeat Alerts</h4>
+            </div>
+            <div class="table-scroll" style="max-height: 480px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Device Source ID</th>
+                    <th>Alert Type</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody id="hbAlertsTableBody">
+                  <tr><td colspan="4" class="empty-state">No alerts recorded. All device sources operating normally.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
       </section>
 
       <section class="view-panel" id="view-explorer">
-
         <div class="main-grid" style="align-items:start;">
+          <div class="panel details" style="position:sticky; top:1rem; max-height:calc(100vh - 2rem); overflow-y:auto;">
+            <h3>Event Details</h3>
+            <pre id="eventDetails">Select an event from the table &mdash; this panel stays in view as you scroll, no matter which row you pick.</pre>
+          </div>
 
-        <div class="panel details" style="position:sticky; top:1rem; max-height:calc(100vh - 2rem); overflow-y:auto;">
-          <h3>Event Details</h3>
-          <pre id="eventDetails">Select an event from the table &mdash; this panel stays in view as you scroll, no matter which row you pick.</pre>
+          <div class="panel">
+            <h3>Event Explorer</h3>
+            <div class="controls">
+              <input id="searchBox" placeholder="Search Event ID or Source" autocomplete="off">
+              <select id="domainFilter">
+                <option value="">All Domains</option>
+                <option value="fault">fault</option>
+                <option value="heartbeat">heartbeat</option>
+                <option value="notification">notification</option>
+                <option value="stateChange">stateChange</option>
+                <option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
+                <option value="pnfRegistration">pnfRegistration</option>
+                <option value="stndDefined">stndDefined</option>
+              </select>
+              <select id="deviceFilter"><option value="">All Devices</option></select>
+              <button class="btn" id="exportCsvBtn">Export CSV</button>
+            </div>
+
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th data-sort="receivedAt">Time <span class="sort-arrow"></span></th>
+                    <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
+                    <th data-sort="eventId">Event ID <span class="sort-arrow"></span></th>
+                    <th data-sort="sourceName">Source <span class="sort-arrow"></span></th>
+                    <th data-sort="priority">Priority <span class="sort-arrow"></span></th>
+                  </tr>
+                </thead>
+                <tbody id="eventsTable"></tbody>
+              </table>
+            </div>
+            <div class="table-foot">
+              <span id="explorerCount">0 events shown</span>
+              <span>Buffer holds last 200 events (backend limit)</span>
+            </div>
+          </div>
         </div>
+      </section>
 
+      <section class="view-panel" id="view-pnf">
         <div class="panel">
-          <h3>Event Explorer</h3>
+          <h3>PNF Registration <span class="count-pill" id="pnfCountPill">0 registered</span>
+            <button class="btn small" id="configurePnfForwardBtn">Configure Forwarding &rarr;</button>
+          </h3>
+          <p class="panel-note">Every registered PNF is forwarded automatically to the destination below as soon as it's received &mdash; this panel only controls where forwarded records are sent, not whether forwarding happens.</p>
+
           <div class="controls">
-            <input id="searchBox" placeholder="Search Event ID or Source" autocomplete="off">
-            <select id="domainFilter">
-              <option value="">All Domains</option>
-              <option value="fault">fault</option>
-              <option value="heartbeat">heartbeat</option>
-              <option value="notification">notification</option>
-              <option value="stateChange">stateChange</option>
-              <option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
-              <option value="pnfRegistration">pnfRegistration</option>
-              <option value="stndDefined">stndDefined</option>
+            <input id="pnfSearch" placeholder="Search PNF name, vendor, or IP address" autocomplete="off">
+            <select id="pnfVendorFilter">
+              <option value="">All Vendors</option>
             </select>
-            <select id="deviceFilter"><option value="">All Devices</option></select>
-            <button class="btn" id="exportCsvBtn">Export CSV</button>
           </div>
 
           <div class="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th data-sort="receivedAt">Time <span class="sort-arrow"></span></th>
-                  <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
-                  <th data-sort="eventId">Event ID <span class="sort-arrow"></span></th>
-                  <th data-sort="sourceName">Source <span class="sort-arrow"></span></th>
-                  <th data-sort="priority">Priority <span class="sort-arrow"></span></th>
+                  <th>Time</th><th>PNF Name</th><th>Vendor</th><th>Model</th>
+                  <th>OAM IP</th><th>Protocol</th><th>Username</th><th>Forward Status</th><th></th>
                 </tr>
               </thead>
-              <tbody id="eventsTable"></tbody>
+              <tbody id="pnfsTable"></tbody>
             </table>
           </div>
-          <div class="table-foot">
-            <span id="explorerCount">0 events shown</span>
-            <span>Buffer holds last 200 events (backend limit)</span>
+        </div>
+      </section>
+
+      <section class="view-panel" id="view-alarms">
+        <div class="panel">
+          <h3>Alarm Correlation</h3>
+          <p class="panel-note">Correlated client-side from fault, stndDefined (notifyNewAlarm/notifyClearedAlarm), &amp; threshold events (grouped by device + condition). Persistent database backend.</p>
+
+          <div class="alarm-summary-strip" id="alarmSummaryStrip"></div>
+
+          <div class="controls">
+            <input id="alarmSearch" placeholder="Search device, condition, or domain &middot; space-separate multiple terms" autocomplete="off">
+            <select id="alarmDomainFilter">
+              <option value="">All Domains</option>
+              <option value="fault">fault</option>
+              <option value="stndDefined">stndDefined</option>
+              <option value="thresholdCrossingAlert">thresholdCrossingAlert</option>
+            </select>
+            <select id="alarmSeverityFilter">
+              <option value="">All Severities</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="MAJOR">Major</option>
+              <option value="WARNING">Warning</option>
+              <option value="CLEARED">Cleared</option>
+            </select>
+            <select id="alarmTimeRangeFilter">
+              <option value="">All Time</option>
+              <option value="15m">Last 15 min</option>
+              <option value="1h">Last 1 hour</option>
+              <option value="24h">Last 24 hours</option>
+            </select>
+          </div>
+
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th data-sort="severity">Severity <span class="sort-arrow"></span></th>
+                  <th data-sort="device">Device <span class="sort-arrow"></span></th>
+                  <th data-sort="condition">Condition <span class="sort-arrow"></span></th>
+                  <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
+                  <th data-sort="firstSeen">First Seen <span class="sort-arrow"></span></th>
+                  <th data-sort="lastSeen">Last Seen <span class="sort-arrow"></span></th>
+                  <th data-sort="occurrences">Occurrences <span class="sort-arrow"></span></th>
+                </tr>
+              </thead>
+              <tbody id="alarmsTable"></tbody>
+            </table>
           </div>
         </div>
-
-        </div>
-
       </section>
 
     </div>
@@ -472,6 +622,70 @@
 </div>
 
 <div class="toast-stack" id="toastStack"></div>
+
+<!-- Heartbeat Configuration Modal -->
+<div class="modal-backdrop" id="hbConfigModalBackdrop">
+  <div class="modal" style="max-width: 500px;">
+    <div class="modal-head">
+      <h3>Heartbeat Monitoring Configuration</h3>
+      <button class="modal-close" id="hbConfigModalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+        <div>
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Default Heartbeat Interval (seconds)</label>
+          <input type="number" id="hbCfgDefaultInterval" style="width:100%;" value="30" min="5" autocomplete="off">
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Warning Timeout (seconds / Delayed threshold)</label>
+          <input type="number" id="hbCfgWarningTimeout" style="width:100%;" value="45" min="10" autocomplete="off">
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Offline Timeout (seconds / Offline threshold)</label>
+          <input type="number" id="hbCfgOfflineTimeout" style="width:100%;" value="90" min="15" autocomplete="off">
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Maximum Stored Events</label>
+          <input type="number" id="hbCfgMaxEvents" style="width:100%;" value="200" autocomplete="off">
+        </div>
+        <div>
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Data Retention Period (hours)</label>
+          <input type="number" id="hbCfgRetention" style="width:100%;" value="24" autocomplete="off">
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="hbCfgAlertsEnabled" checked>
+          <label for="hbCfgAlertsEnabled" style="font-size: 13px; color: var(--text-main);">Enable Heartbeat Alerts &amp; Notifications</label>
+        </div>
+      </div>
+      <div class="modal-actions" style="display:flex; justify-content:flex-end; gap: 0.5rem;">
+        <button class="btn" id="hbConfigResetBtn">Reset Defaults</button>
+        <button class="btn primary" id="hbConfigSaveBtn">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Heartbeat Event Details Modal -->
+<div class="modal-backdrop" id="hbEventModalBackdrop">
+  <div class="modal" style="max-width: 650px;">
+    <div class="modal-head">
+      <h3 id="hbEventModalTitle">Heartbeat Event Details</h3>
+      <button class="modal-close" id="hbEventModalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="hbEventModalBody"></div>
+  </div>
+</div>
+
+<!-- Heartbeat Source/Device Details Modal -->
+<div class="modal-backdrop" id="hbSourceModalBackdrop">
+  <div class="modal" style="max-width: 750px;">
+    <div class="modal-head">
+      <h3 id="hbSourceModalTitle">Device Source Details</h3>
+      <button class="modal-close" id="hbSourceModalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="hbSourceModalBody"></div>
+  </div>
+</div>
 
 <div class="modal-backdrop" id="deviceModalBackdrop">
   <div class="modal">
@@ -493,8 +707,9 @@
   </div>
 </div>
 
+<!-- Alarm Details Modal -->
 <div class="modal-backdrop" id="alarmModalBackdrop">
-  <div class="modal">
+  <div class="modal" style="max-width: 750px;">
     <div class="modal-head">
       <h3 id="alarmModalTitle">ALARM</h3>
       <button class="modal-close" id="alarmModalClose">&times;</button>
@@ -560,22 +775,35 @@ let cachedDevices = [];
 let cachedFiles = [];
 let cachedPNFs = [];
 let domainChart = null;
+let hbRateChart = null;
 let chartInitialized = false;
 let currentView = 'overview';
 let explorerSort = { key:'receivedAt', dir:'desc' };
 let alarmSort = { key: null, dir: 'asc' };
-let ackedAlarms = new Set(JSON.parse(localStorage.getItem('vesAckedAlarms') || '[]'));
 let toastedEventIds = new Set();
 let firstLoad = true;
 let selectedEventId = null;
 
+let hbConfig = JSON.parse(localStorage.getItem('vesHbConfig') || JSON.stringify({
+  defaultInterval: 30,
+  warningTimeout: 45,
+  offlineTimeout: 90,
+  maxEvents: 200,
+  retentionHours: 24,
+  alertsEnabled: true
+}));
+
+let hbAlerts = JSON.parse(localStorage.getItem('vesHbAlerts') || '[]');
+let hbSourceRegistry = {};
+
 const VIEW_META = {
-  cm:       { title:'CM',                        subtitle:'NETCONF device configuration' },
-  overview: { title:'Overview',                  subtitle:'Live network event summary' },
-  alarms:   { title:'FM',                        subtitle:'Correlated fault, stndDefined & threshold conditions' },
-  pnf:      { title:'PNF Registration',          subtitle:'Registered Physical Network Functions' },
-  files:    { title:'PM',                        subtitle:'fileReady references from stndDefined events' },
-  explorer: { title:'Event Explorer',            subtitle:'Raw event stream, searchable & sortable' },
+  overview:  { title:'Overview',                subtitle:'Live network event summary' },
+  cm:        { title:'CM',                      subtitle:'NETCONF device configuration' },
+  files:     { title:'PM',                      subtitle:'fileReady references from stndDefined events' },
+  heartbeat: { title:'Heartbeat',               subtitle:'Device-centric real-time heartbeat health & telemetry suite' },
+  explorer:  { title:'Event Explorer',          subtitle:'Raw event stream, searchable & sortable' },
+  pnf:       { title:'PNF Registration',        subtitle:'Registered Physical Network Functions' },
+  alarms:    { title:'FM',                      subtitle:'Correlated fault, stndDefined & threshold conditions' },
 };
 
 /* ============================================================
@@ -592,12 +820,13 @@ function switchView(view){
 
   if(view==='cm') {
     loadCM();
-    startCmAutoPolling();
-  } else {
-    stopCmAutoPolling();
   }
 
   if(view==='pnf') renderPNFs();
+  if(view==='heartbeat') {
+    processHeartbeatData();
+    renderHeartbeatModule();
+  }
 }
 
 document.querySelectorAll('.nav-item').forEach(btn=>{
@@ -625,9 +854,13 @@ document.getElementById('globalSearch').addEventListener('input', (e)=>{
   document.getElementById('searchBox').value = val;
   document.getElementById('deviceSearch').value = val;
   document.getElementById('pnfSearch').value = val;
+  const hbSearch = document.getElementById('hbSourceSearch');
+  if(hbSearch) hbSearch.value = val;
   renderEvents();
   renderDevices();
   renderPNFs();
+  processHeartbeatData();
+  renderHeartbeatModule();
 });
 
 function tickClock(){
@@ -671,22 +904,11 @@ let currentCmViewMode = 'tree';
 let activeXmlDoc = null;
 let pinnedModules = JSON.parse(localStorage.getItem('cm_pinned_modules') || '[]');
 let currentCmModules = [];
-let cmPollingInterval = null;
-let expandedNodePaths = new Set(); // Stores expanded node paths across re-renders
+let expandedNodePaths = new Set();
 
-/* ------------------------------------------------------------
-   CM Module Allowlist — controlled here in code only, never
-   editable from the UI.
-   - Leave CM_ALLOWED_MODULES as an empty array [] to show ALL
-     modules Netopeer2 reports (no filtering).
-   - To restrict the "Installed YANG Modules" panel + the YANG
-     Module dropdown to a specific set, add the exact module
-     names (as returned by /api/cm/modules, e.g. "name" field)
-     to this array.
-   ------------------------------------------------------------ */
 const CM_ALLOWED_MODULES = [
-   'ves-pnf-registration',
-   'ietf-netconf',
+    // 'ves-pnf-registration',
+    // 'ietf-netconf',
 ];
 
 function isCmModuleAllowed(moduleName) {
@@ -698,24 +920,6 @@ function filterCmModules(modules) {
   if (!Array.isArray(modules)) return [];
   if (!CM_ALLOWED_MODULES || CM_ALLOWED_MODULES.length === 0) return modules;
   return modules.filter(m => isCmModuleAllowed(m.name));
-}
-
-function startCmAutoPolling() {
-  stopCmAutoPolling();
-  cmPollingInterval = setInterval(() => {
-    if (currentView === 'cm') {
-      const moduleSelect = document.getElementById('cmModuleSelect');
-      const targetModule = moduleSelect ? moduleSelect.value : 'ves-pnf-registration';
-      fetchCmConfig(targetModule, true);
-    }
-  }, 3000);
-}
-
-function stopCmAutoPolling() {
-  if (cmPollingInterval) {
-    clearInterval(cmPollingInterval);
-    cmPollingInterval = null;
-  }
 }
 
 function togglePinModule(event, moduleName) {
@@ -745,10 +949,10 @@ function renderCmModules(modules) {
     container.innerHTML = hasHiddenModules
       ? `<div style="padding: 1rem; text-align: center; color: var(--text-muted);">
           All ${modules.length} installed module(s) are hidden by the CM_ALLOWED_MODULES allowlist.
-        </div>`
+         </div>`
       : `<div style="padding: 1rem; text-align: center; color: var(--text-muted);">
           No active modules found on Netopeer2.
-        </div>`;
+         </div>`;
     return;
   }
 
@@ -891,7 +1095,7 @@ async function loadCM() {
   }
 }
 
-async function fetchCmConfig(moduleName, silent = false) {
+async function fetchCmConfig(moduleName) {
   const module = moduleName !== undefined ? moduleName : document.getElementById('cmModuleSelect').value;
   const datastore = document.getElementById('cmDatastore').value;
   const output = document.getElementById('cmConfigOutput');
@@ -902,16 +1106,9 @@ async function fetchCmConfig(moduleName, silent = false) {
 
   if (!activeCmDevice) return;
 
-  const isTreeFocused = treeContainer && treeContainer.contains(document.activeElement);
-  if (silent && (isCmDirty || isTreeFocused)) {
-    return;
-  }
-
-  if (!silent) {
-    treeContainer.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">Fetching hierarchy tree from Netopeer2...</div>';
-    output.value = 'Fetching configuration...';
-    if (statusText) statusText.textContent = `Loading ${module || 'full datastore'} (${datastore})...`;
-  }
+  treeContainer.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">Fetching hierarchy tree from Netopeer2...</div>';
+  output.value = 'Fetching configuration...';
+  if (statusText) statusText.textContent = `Loading ${module || 'full datastore'} (${datastore})...`;
 
   try {
     let url = `/api/cm/config?device_id=${encodeURIComponent(activeCmDevice)}&datastore=${encodeURIComponent(datastore)}`;
@@ -919,10 +1116,6 @@ async function fetchCmConfig(moduleName, silent = false) {
 
     const res = await safeFetch(url);
     const xmlText = res.config !== undefined ? res.config : res;
-
-    if (silent && output.value === xmlText) {
-      return;
-    }
 
     output.value = xmlText;
 
@@ -944,12 +1137,10 @@ async function fetchCmConfig(moduleName, silent = false) {
     
     if (saveBtn && !isCmDirty) saveBtn.disabled = false;
   } catch (err) {
-    if (!silent) {
-      treeContainer.innerHTML = `<div style="color:#ff4d5e; padding:20px;">Error loading configuration: ${err.message}</div>`;
-      output.value = `<!-- Error: ${err.message || 'Server error'} -->`;
-      if (statusText) statusText.textContent = 'Error loading datastore';
-      if (saveBtn) saveBtn.disabled = true;
-    }
+    treeContainer.innerHTML = `<div style="color:#ff4d5e; padding:20px;">Error loading configuration: ${err.message}</div>`;
+    output.value = `<!-- Error: ${err.message || 'Server error'} -->`;
+    if (statusText) statusText.textContent = 'Error loading datastore';
+    if (saveBtn) saveBtn.disabled = true;
   }
 }
 
@@ -1345,6 +1536,447 @@ function createDomainChart(data){
 }
 
 /* ============================================================
+    Advanced Heartbeat Monitoring Suite Logic (Device Centric)
+    ============================================================ */
+
+document.querySelectorAll('.hb-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.hb-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.hb-tab-pane').forEach(p => p.style.display = 'none');
+    btn.classList.add('active');
+    const paneId = 'hbpane-' + btn.dataset.hbtab;
+    const pane = document.getElementById(paneId);
+    if(pane) pane.style.display = 'block';
+    if(btn.dataset.hbtab === 'analytics') {
+      renderHbAnalyticsChart();
+    }
+  });
+});
+
+function isHeartbeatEvent(e) {
+  if(e.domain === 'heartbeat') return true;
+  if(e.domain === 'stndDefined') {
+    const eventName = (e.eventName || '').toLowerCase();
+    const data = e.raw?.stndDefinedFields?.data || {};
+    if(eventName.includes('heartbeat') || data.heartbeatInterval !== undefined || data.heartbeatFieldsVersion !== undefined) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function processHeartbeatData() {
+  const hbEvents = cachedEvents.filter(isHeartbeatEvent);
+  const now = Date.now();
+
+  hbEvents.forEach(e => {
+    const sourceId = e.sourceName || 'unknown-device';
+    const raw = e.raw || {};
+    const header = raw.event?.commonEventHeader || {};
+    const hbFields = raw.event?.heartbeatFields || raw.stndDefinedFields?.data || {};
+    const epoch = header.startEpochMicrosec ? header.startEpochMicrosec / 1000 : (new Date(e.receivedAt).getTime() || now);
+    const intervalVal = hbFields.heartbeatInterval || hbConfig.defaultInterval;
+
+    if(!hbSourceRegistry[sourceId]) {
+      hbSourceRegistry[sourceId] = {
+        source_id: sourceId,
+        source_name: sourceId,
+        first_seen: e.receivedAt,
+        last_seen: e.receivedAt,
+        last_epoch: epoch,
+        total_heartbeats: 0,
+        expected_interval: intervalVal,
+        intervals: [],
+        min_interval: null,
+        max_interval: null,
+        average_interval: intervalVal,
+        status: 'Healthy',
+        status_history: [],
+        downtime_start: null,
+        total_downtime_ms: 0
+      };
+    }
+
+    const src = hbSourceRegistry[sourceId];
+    src.total_heartbeats += 1;
+    if(e.receivedAt < src.first_seen) src.first_seen = e.receivedAt;
+    
+    if(epoch >= src.last_epoch) {
+      const diff = (epoch - src.last_epoch) / 1000;
+      if(diff > 0 && diff < 86400) {
+        src.intervals.push(diff);
+        if(src.min_interval === null || diff < src.min_interval) src.min_interval = diff;
+        if(src.max_interval === null || diff > src.max_interval) src.max_interval = diff;
+      }
+      src.last_epoch = epoch;
+      src.last_seen = e.receivedAt;
+    }
+  });
+
+  Object.values(hbSourceRegistry).forEach(src => {
+    if(src.intervals.length > 0) {
+      const sum = src.intervals.reduce((a, b) => a + b, 0);
+      src.average_interval = Math.round(sum / src.intervals.length);
+    }
+
+    const lastTime = new Date(src.last_seen).getTime();
+    const timeSinceLastSec = (now - lastTime) / 1000;
+    const oldStatus = src.status;
+    let newStatus = 'Healthy';
+
+    if(timeSinceLastSec > hbConfig.offlineTimeout) {
+      newStatus = 'Offline';
+    } else if(timeSinceLastSec > hbConfig.warningTimeout) {
+      newStatus = 'Delayed';
+    } else {
+      newStatus = 'Healthy';
+    }
+
+    if(newStatus !== oldStatus) {
+      src.status = newStatus;
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      src.status_history.push({ time: timeStr, status: newStatus, timestamp: now });
+
+      if(hbConfig.alertsEnabled) {
+        triggerHbAlert(src.source_id, newStatus, `Device source status changed to ${newStatus} (silent for ${Math.round(timeSinceLastSec)}s)`);
+      }
+    }
+  });
+}
+
+function triggerHbAlert(sourceId, status, message) {
+  const alertType = status === 'Offline' ? 'Device Offline' : (status === 'Delayed' ? 'Device Delayed' : 'Device Recovered');
+  const newAlert = {
+    id: 'alert_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+    time: new Date().toLocaleTimeString(),
+    source_id: sourceId,
+    type: alertType,
+    message: message
+  };
+  const existing = hbAlerts.find(a => a.source_id === sourceId && a.type === alertType);
+  if(!existing) {
+    hbAlerts.unshift(newAlert);
+    if(hbAlerts.length > 100) hbAlerts.pop();
+    localStorage.setItem('vesHbAlerts', JSON.stringify(hbAlerts));
+  }
+}
+
+function renderHeartbeatModule() {
+  const hbEvents = cachedEvents.filter(isHeartbeatEvent);
+  const now = Date.now();
+  const todayStr = new Date().toDateString();
+
+  const totalCount = hbEvents.length;
+  const todayCount = hbEvents.filter(e => new Date(e.receivedAt).toDateString() === todayStr).length;
+  const sourcesArr = Object.values(hbSourceRegistry);
+  const activeSources = sourcesArr.length;
+  const healthyCount = sourcesArr.filter(s => s.status === 'Healthy').length;
+  const delayedCount = sourcesArr.filter(s => s.status === 'Delayed').length;
+  const offlineCount = sourcesArr.filter(s => s.status === 'Offline').length;
+
+  document.getElementById('hbTotalCount').textContent = totalCount;
+  document.getElementById('hbTodayCount').textContent = todayCount;
+  document.getElementById('hbActiveSourcesCount').textContent = activeSources;
+  document.getElementById('hbHealthyCount').textContent = healthyCount;
+  document.getElementById('hbDelayedCount').textContent = delayedCount;
+  document.getElementById('hbOfflineCount').textContent = offlineCount;
+  document.getElementById('hbRateCount').textContent = `${Math.round(totalCount > 0 ? (totalCount / 5) : 0)} /min`;
+  document.getElementById('navHeartbeatBadge').textContent = totalCount;
+
+  document.getElementById('hbAlertsCountPill').textContent = hbAlerts.length;
+
+  renderHbSourcesTable();
+  renderHbEventsTable();
+  renderHbAlertsTable();
+  populateHbEventSourceFilter();
+}
+
+function renderHbSourcesTable() {
+  const tbody = document.getElementById('hbSourcesTableBody');
+  const search = (document.getElementById('hbSourceSearch').value || '').toLowerCase();
+  const statusFilter = document.getElementById('hbSourceStatusFilter').value;
+  const sortBy = document.getElementById('hbSourceSortBy').value;
+
+  let sources = Object.values(hbSourceRegistry).filter(s => {
+    if(statusFilter && s.status !== statusFilter) return false;
+    if(search && !s.source_id.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  sources.sort((a, b) => {
+    if(sortBy === 'last_seen_desc') return new Date(b.last_seen) - new Date(a.last_seen);
+    if(sortBy === 'last_seen_asc') return new Date(a.last_seen) - new Date(b.last_seen);
+    if(sortBy === 'status') return a.status.localeCompare(b.status);
+    if(sortBy === 'total_desc') return b.total_heartbeats - a.total_heartbeats;
+    return 0;
+  });
+
+  if(sources.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No device sources match current filters.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sources.map(s => {
+    const timeSinceSec = Math.floor((Date.now() - new Date(s.last_seen).getTime()) / 1000);
+    const statusIcon = s.status === 'Healthy' ? '🟢' : (s.status === 'Delayed' ? '🟡' : '🔴');
+    return `
+      <tr style="cursor: pointer;" onclick="openHbSourceDetails('${s.source_id}')">
+        <td><b>${s.source_id}</b></td>
+        <td><span class="hb-health-pill ${s.status.toLowerCase()}">${statusIcon} ${s.status}</span></td>
+        <td>${s.last_seen || '-'}</td>
+        <td>${timeSinceSec}s ago</td>
+        <td>${s.expected_interval}s</td>
+        <td>${s.average_interval}s (avg)</td>
+        <td><b>${s.total_heartbeats}</b></td>
+        <td><button class="btn small primary">Device Details</button></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+['hbSourceSearch', 'hbSourceStatusFilter', 'hbSourceSortBy'].forEach(id => {
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('input', renderHbSourcesTable);
+  if(el) el.addEventListener('change', renderHbSourcesTable);
+});
+
+function populateHbEventSourceFilter() {
+  const select = document.getElementById('hbEventSourceFilter');
+  if(!select) return;
+  const current = select.value;
+  const sources = [...new Set(cachedEvents.filter(isHeartbeatEvent).map(e => e.sourceName).filter(Boolean))].sort();
+  select.innerHTML = '<option value="">All Device Sources</option>' + sources.map(s => `<option value="${s}">${s}</option>`).join('');
+  select.value = sources.includes(current) ? current : '';
+}
+
+function renderHbEventsTable() {
+  const tbody = document.getElementById('hbEventsTableBody');
+  const search = (document.getElementById('hbEventSearch').value || '').toLowerCase();
+  const sourceFilter = document.getElementById('hbEventSourceFilter').value;
+  const timeRange = document.getElementById('hbEventTimeRange').value;
+
+  let hbEvents = cachedEvents.filter(e => {
+    if(!isHeartbeatEvent(e)) return false;
+    if(sourceFilter && e.sourceName !== sourceFilter) return false;
+    const text = ((e.sourceName || '') + ' ' + (e.eventId || '')).toLowerCase();
+    if(search && !text.includes(search)) return false;
+    if(timeRange) {
+      const span = timeRange === '15m' ? 15*60000 : (timeRange === '1h' ? 60*60000 : 24*60*60000);
+      if(Date.now() - new Date(e.receivedAt).getTime() > span) return false;
+    }
+    return true;
+  });
+
+  if(hbEvents.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No heartbeat events match current filter.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = hbEvents.map(e => {
+    const srcStatus = hbSourceRegistry[e.sourceName]?.status || 'Healthy';
+    const statusIcon = srcStatus === 'Healthy' ? '🟢' : (srcStatus === 'Delayed' ? '🟡' : '🔴');
+    const domainBadge = e.domain === 'stndDefined' ? '<span class="badge stndDefined">stndDefined</span>' : '<span class="badge heartbeat">native</span>';
+    return `
+      <tr>
+        <td>${e.receivedAt || '-'}</td>
+        <td><b>${e.sourceName || '-'}</b></td>
+        <td style="font-size: 11px; color: var(--text-muted);">
+          <span class="event-id-chip" title="${e.eventId || '-'}">${(e.eventId||'-').slice(0,20)}</span>
+          <button class="btn small" style="margin-left:8px; padding:2px 6px; font-size:11px;" onclick="(function(id, btn){ if(!id) return; navigator.clipboard.writeText(id).then(()=>{ const orig=btn.textContent; btn.textContent='copied'; setTimeout(()=>btn.textContent=orig,900); }).catch(()=>{}); })(${JSON.stringify(e.eventId||'')}, this)">copy</button>
+        </td>
+        <td>${domainBadge}</td>
+        <td><span class="hb-health-pill ${srcStatus.toLowerCase()}">${statusIcon} ${srcStatus}</span></td>
+        <td>
+          <button class="btn small primary" onclick='openHbEventModal(${JSON.stringify(e).replace(/'/g, "&#39;")})'>View</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+['hbEventSearch', 'hbEventSourceFilter', 'hbEventTimeRange'].forEach(id => {
+  const el = document.getElementById(id);
+  if(el) {
+    el.addEventListener('input', renderHbEventsTable);
+    if(el.tagName === 'SELECT') el.addEventListener('change', renderHbEventsTable);
+  }
+});
+
+function renderHbAlertsTable() {
+  const tbody = document.getElementById('hbAlertsTableBody');
+  if(!tbody) return;
+
+  if(hbAlerts.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No alerts recorded. All device sources operating normally.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = hbAlerts.map(a => `
+    <tr>
+      <td>${a.time}</td>
+      <td><b>${a.source_id}</b></td>
+      <td><span class="badge ${a.type.includes('Offline') ? 'bad' : 'warn'}">${a.type}</span></td>
+      <td>${a.message}</td>
+    </tr>
+  `).join('');
+}
+
+function renderHbAnalyticsChart() {
+  const ctx = document.getElementById('hbRateChart');
+  if(!ctx) return;
+  const hbEvents = cachedEvents.filter(isHeartbeatEvent);
+
+  if(hbRateChart) hbRateChart.destroy();
+
+  hbRateChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['-50m', '-40m', '-30m', '-20m', '-10m', 'Now'],
+      datasets: [{
+        label: 'Heartbeats / 10m',
+        data: [
+          hbEvents.length > 10 ? 5 : 1,
+          hbEvents.length > 8 ? 8 : 2,
+          hbEvents.length > 5 ? 12 : 3,
+          hbEvents.length > 3 ? 15 : 4,
+          hbEvents.length,
+          hbEvents.length
+        ],
+        borderColor: '#38edf8',
+        backgroundColor: 'rgba(56, 237, 248, 0.1)',
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8b96a6' }, grid: { color: '#2d3748' } },
+        y: { ticks: { color: '#8b96a6' }, grid: { color: '#2d3748' } }
+      }
+    }
+  });
+}
+
+function openHbSourceDetails(sourceId) {
+  const src = hbSourceRegistry[sourceId];
+  if(!src) return;
+
+  document.querySelectorAll('.hb-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.hb-tab-pane').forEach(p => p.style.display = 'none');
+  const analyticsBtn = document.querySelector('[data-hbtab="analytics"]');
+  if(analyticsBtn) analyticsBtn.classList.add('active');
+  const pane = document.getElementById('hbpane-analytics');
+  if(pane) pane.style.display = 'block';
+
+  renderHbAnalyticsChart();
+
+  const historyHtml = src.status_history.length > 0 
+    ? src.status_history.map(h => `<div class="modal-event-row"><span>${h.time}</span><span class="hb-health-pill ${h.status.toLowerCase()}">${h.status}</span></div>`).join('')
+    : '<div style="color: var(--text-muted); font-style: italic;">No status transitions recorded yet.</div>';
+
+  const detailPanel = document.getElementById('hbAnalyticsDetailPanel');
+  detailPanel.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d3748; padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
+      <h4 style="margin: 0; color: #38edf8;">Device Source: ${src.source_id}</h4>
+      <span class="hb-health-pill ${src.status.toLowerCase()}">${src.status}</span>
+    </div>
+    <div class="modal-grid" style="margin-bottom: 1rem;">
+      <div class="modal-stat"><p>First Seen</p><h4>${src.first_seen}</h4></div>
+      <div class="modal-stat"><p>Last Seen</p><h4>${src.last_seen}</h4></div>
+      <div class="modal-stat"><p>Total Heartbeats</p><h4>${src.total_heartbeats}</h4></div>
+      <div class="modal-stat"><p>Expected Interval</p><h4>${src.expected_interval}s</h4></div>
+      <div class="modal-stat"><p>Average Interval</p><h4>${src.average_interval}s</h4></div>
+      <div class="modal-stat"><p>Min / Max Interval</p><h4>${src.min_interval || 0}s / ${src.max_interval || 0}s</h4></div>
+    </div>
+    <h5 style="margin: 0 0 0.5rem 0; color: var(--text-muted);">Device Status Transition Timeline</h5>
+    <div style="max-height: 150px; overflow-y: auto;">
+      ${historyHtml}
+    </div>
+  `;
+}
+
+function openHbEventModal(eventItem) {
+  const backdrop = document.getElementById('hbEventModalBackdrop');
+  const body = document.getElementById('hbEventModalBody');
+  document.getElementById('hbEventModalTitle').textContent = `Heartbeat Event: ${eventItem.eventId || 'Details'}`;
+
+  body.innerHTML = `
+    <div class="modal-grid" style="margin-bottom: 1rem;">
+      <div class="modal-stat"><p>Timestamp</p><h4>${eventItem.receivedAt}</h4></div>
+      <div class="modal-stat"><p>Device Source</p><h4>${eventItem.sourceName}</h4></div>
+      <div class="modal-stat"><p>Event ID</p><h4>${eventItem.eventId || '-'}</h4></div>
+      <div class="modal-stat"><p>Domain / Type</p><h4>${eventItem.domain}</h4></div>
+    </div>
+    <h5 style="margin: 0 0 0.5rem 0;">Raw JSON Payload</h5>
+    <pre style="background: #0b0f19; color: #38edf8; padding: 12px; border-radius: 4px; max-height: 250px; overflow: auto; font-family: 'IBM Plex Mono', monospace; font-size: 11px;">${JSON.stringify(eventItem.raw || eventItem, null, 2)}</pre>
+    <div class="modal-actions" style="display:flex; justify-content:flex-end; margin-top: 1rem;">
+      <button class="btn small primary" onclick="navigator.clipboard.writeText(JSON.stringify(${JSON.stringify(eventItem.raw || eventItem).replace(/'/g, "\\'")}, null, 2)); alert('JSON copied to clipboard!');">Copy JSON</button>
+    </div>
+  `;
+  backdrop.classList.add('open');
+}
+
+document.getElementById('hbEventModalClose').addEventListener('click', () => {
+  document.getElementById('hbEventModalBackdrop').classList.remove('open');
+});
+
+document.getElementById('openHbConfigModalBtn').addEventListener('click', () => {
+  document.getElementById('hbCfgDefaultInterval').value = hbConfig.defaultInterval;
+  document.getElementById('hbCfgWarningTimeout').value = hbConfig.warningTimeout;
+  document.getElementById('hbCfgOfflineTimeout').value = hbConfig.offlineTimeout;
+  document.getElementById('hbCfgMaxEvents').value = hbConfig.maxEvents;
+  document.getElementById('hbCfgRetention').value = hbConfig.retentionHours;
+  document.getElementById('hbCfgAlertsEnabled').checked = hbConfig.alertsEnabled;
+  document.getElementById('hbConfigModalBackdrop').classList.add('open');
+});
+
+document.getElementById('hbConfigModalClose').addEventListener('click', () => {
+  document.getElementById('hbConfigModalBackdrop').classList.remove('open');
+});
+
+document.getElementById('hbConfigSaveBtn').addEventListener('click', () => {
+  hbConfig = {
+    defaultInterval: parseInt(document.getElementById('hbCfgDefaultInterval').value) || 30,
+    warningTimeout: parseInt(document.getElementById('hbCfgWarningTimeout').value) || 45,
+    offlineTimeout: parseInt(document.getElementById('hbCfgOfflineTimeout').value) || 90,
+    maxEvents: parseInt(document.getElementById('hbCfgMaxEvents').value) || 200,
+    retentionHours: parseInt(document.getElementById('hbCfgRetention').value) || 24,
+    alertsEnabled: document.getElementById('hbCfgAlertsEnabled').checked
+  };
+  localStorage.setItem('vesHbConfig', JSON.stringify(hbConfig));
+  document.getElementById('hbConfigModalBackdrop').classList.remove('open');
+  processHeartbeatData();
+  renderHeartbeatModule();
+  alert('Heartbeat configuration successfully saved!');
+});
+
+document.getElementById('hbConfigResetBtn').addEventListener('click', () => {
+  hbConfig = {
+    defaultInterval: 30,
+    warningTimeout: 45,
+    offlineTimeout: 90,
+    maxEvents: 200,
+    retentionHours: 24,
+    alertsEnabled: true
+  };
+  localStorage.setItem('vesHbConfig', JSON.stringify(hbConfig));
+  document.getElementById('hbCfgDefaultInterval').value = hbConfig.defaultInterval;
+  document.getElementById('hbCfgWarningTimeout').value = hbConfig.warningTimeout;
+  document.getElementById('hbCfgOfflineTimeout').value = hbConfig.offlineTimeout;
+  document.getElementById('hbCfgMaxEvents').value = hbConfig.maxEvents;
+  document.getElementById('hbCfgRetention').value = hbConfig.retentionHours;
+  document.getElementById('hbCfgAlertsEnabled').checked = hbConfig.alertsEnabled;
+});
+
+document.getElementById('refreshHeartbeatsBtn').addEventListener('click', () => {
+  processHeartbeatData();
+  renderHeartbeatModule();
+});
+
+/* ============================================================
     Events & Dashboard Functions
     ============================================================ */
 async function loadEvents(){
@@ -1355,6 +1987,8 @@ async function loadEvents(){
  renderEvents();
  populateDeviceFilter();
  checkForCriticalToasts();
+ processHeartbeatData();
+ if(currentView === 'heartbeat') renderHeartbeatModule();
 }
 
 function renderFeed(){
@@ -1399,7 +2033,14 @@ function renderEvents(){
  let rows = cachedEvents.filter(event=>{
   if(filter && event.domain!==filter) return false;
   if(deviceFilter && event.sourceName!==deviceFilter) return false;
-  const text=((event.eventId||'')+' '+(event.sourceName||'')).toLowerCase();
+  const idParts = [];
+  if(event.eventId) idParts.push(event.eventId);
+  if(event.event_id) idParts.push(event.event_id);
+  if(event.collectorId) idParts.push(event.collectorId);
+  if(event.collector_id) idParts.push(event.collector_id);
+  if(event.commonEventHeader && event.commonEventHeader.eventId) idParts.push(event.commonEventHeader.eventId);
+  if(event.raw && event.raw.event && event.raw.event.commonEventHeader && event.raw.event.commonEventHeader.eventId) idParts.push(event.raw.event.commonEventHeader.eventId);
+  const text = (idParts.join(' ') + ' ' + (event.sourceName||'')).toLowerCase();
   if(search && !text.includes(search)) return false;
   return true;
  });
@@ -1419,16 +2060,19 @@ function renderEvents(){
       <tr data-id="${event.collectorId}">
         <td>${event.receivedAt||'-'}</td>
         <td><span class="badge ${event.domain}">${event.domain}</span>${explorerDomainSubTag(event)}</td>
-        <td>${event.eventId||'-'}</td>
+        <td style="font-size:11px; color:var(--text-muted);">
+          <span title="${event.eventId || '-'}">${(event.eventId||'-').slice(0,20)}</span>
+          <button class="btn small" style="margin-left:8px; padding:2px 6px; font-size:11px;" onclick="(function(id, btn){ if(!id) return; navigator.clipboard.writeText(id).then(()=>{ const orig=btn.textContent; btn.textContent='copied'; setTimeout(()=>btn.textContent=orig,900); }).catch(()=>{}); })(${JSON.stringify(event.eventId||'')}, this)">copy</button>
+        </td>
         <td>${event.sourceName||'-'}</td>
         <td>${event.priority||'-'}</td>
       </tr>`).join('');
-   [...table.children].forEach((row,i)=>{
-     row.addEventListener('click', ()=>showEvent(rows[i]));
-     if(row.dataset.id === selectedEventId){
-       row.style.background = 'rgba(108,195,255,0.12)';
-     }
-   });
+    [...table.children].forEach((row,i)=>{
+      row.addEventListener('click', ()=>showEvent(rows[i]));
+      if(row.dataset.id === selectedEventId){
+        row.style.background = 'rgba(108,195,255,0.12)';
+      }
+    });
  }
 
  document.getElementById('explorerCount').textContent = `${rows.length} events shown`;
@@ -1467,9 +2111,9 @@ async function loadDevices(){
 }
 
 function deviceCardHtml(d){
-   const state=liveState(d.lastSeen);
-   const metaLine = (d.vendor || d.model) ? `${d.vendor||'Unknown vendor'} &middot; ${d.model||'Unknown model'}` : 'Vendor / model unknown';
-   return `
+    const state=liveState(d.lastSeen);
+    const metaLine = (d.vendor || d.model) ? `${d.vendor||'Unknown vendor'} &middot; ${d.model||'Unknown model'}` : 'Vendor / model unknown';
+    return `
     <div class="device-card" data-signal="${state.signal}" data-id="${d.deviceId}">
       <div class="device-card-head">
         <span class="status-dot ${state.cls}"></span>
@@ -1834,11 +2478,11 @@ async function openFilePreview(fileId){
 
  if(!result.fetched){
     body.innerHTML = metaGrid + `
-      <h5>Content</h5>
-      <div class="empty-state">Not fetched: ${result.reason||'unknown reason'}</div>
-      <div class="modal-actions">
-        <a class="btn small" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Try Download</a>
-      </div>`;
+    <h5>Content</h5>
+    <div class="empty-state">Not fetched: ${result.reason||'unknown reason'}</div>
+    <div class="modal-actions">
+      <a class="btn small" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Try Download</a>
+    </div>`;
     return;
  }
 
@@ -1862,7 +2506,7 @@ document.getElementById('fileModalBackdrop').addEventListener('click', (e)=>{
 });
 
 /* ============================================================
-    STND Defined Events (non-alarm only — alarms live on the Alarms tab)
+    STND Defined Events
     ============================================================ */
 const STND_TYPE_LABELS = {
   notifyNewAlarm: 'New Alarm',
@@ -1888,30 +2532,16 @@ function isStndAlarmType(type){
   return type === 'notifyNewAlarm' || type === 'notifyClearedAlarm';
 }
 
-function isStndRedirectedType(type){
-  return isStndAlarmType(type) || type === 'notifyFileReady' || type === 'notifyPNFRegistration';
-}
-
-const STND_REDIRECT_TARGET = {
-  notifyNewAlarm: 'Alarms tab',
-  notifyClearedAlarm: 'Alarms tab',
-  notifyFileReady: 'Files tab',
-  notifyPNFRegistration: 'PNF Registration tab'
-};
-
 function explorerDomainSubTag(event){
   if(event.domain !== 'stndDefined') return '';
   const type = resolveStndType(event);
   const label = STND_TYPE_LABELS[type] || 'Unknown';
-  const target = STND_REDIRECT_TARGET[type];
-  const suffix = target ? ` &rarr; ${target}` : '';
-  return ` <span class="count-pill" style="font-size:10px; padding:2px 6px; margin-left:4px; vertical-align:middle;">${label}${suffix}</span>`;
+  return ` <span class="count-pill" style="font-size:10px; padding:2px 6px; margin-left:4px; vertical-align:middle;">${label}</span>`;
 }
 
 /* ============================================================
-    Alarm Correlation (fault + stndDefined notifyNewAlarm/notifyClearedAlarm + thresholdCrossingAlert)
+    Alarm Correlation & Full Payload Modal Inspection
     ============================================================ */
-
 function normalizeStndSeverity(rawSeverity, type){
   const sev = (rawSeverity || '').toString().toUpperCase();
   if(type === 'notifyClearedAlarm') return 'CLEARED';
@@ -1980,8 +2610,6 @@ function severityRank(sev){
   return ranks[sev] || 0;
 }
 
-function saveAcks(){ localStorage.setItem('vesAckedAlarms', JSON.stringify([...ackedAlarms])); }
-
 function alarmWithinTimeRange(lastSeen, range){
   if(!range) return true;
   const spans = { '15m': 15*60000, '1h': 60*60000, '24h': 24*60*60000 };
@@ -2005,7 +2633,7 @@ function renderAlarmSummary(groups, stripId, pillId){
     <div class="alarm-summary-chip major"><p>Major</p><h4>${counts.MAJOR}</h4></div>
     <div class="alarm-summary-chip warn"><p>Warning</p><h4>${counts.WARNING}</h4></div>
     <div class="alarm-summary-chip ok"><p>Cleared</p><h4>${groups.length-active.length}</h4></div>
- `;
+ `["trim"]();
 }
 
 function renderAlarms(){
@@ -2018,7 +2646,6 @@ function renderAlarms(){
  const searchTerms = search.split(/\s+/).filter(Boolean);
  const domainFilter=document.getElementById('alarmDomainFilter').value;
  const sevFilter=document.getElementById('alarmSeverityFilter').value;
- const ackFilter=document.getElementById('alarmAckFilter').value;
  const timeRangeFilter=document.getElementById('alarmTimeRangeFilter').value;
 
  let filtered = groups.filter(g=>{
@@ -2027,9 +2654,6 @@ function renderAlarms(){
     if(domainFilter && g.domain!==domainFilter) return false;
     if(sevFilter && g.severity!==sevFilter) return false;
     if(!alarmWithinTimeRange(g.lastSeen, timeRangeFilter)) return false;
-    const acked = ackedAlarms.has(g.key);
-    if(ackFilter==='unacked' && acked) return false;
-    if(ackFilter==='acked' && !acked) return false;
     return true;
  });
 
@@ -2058,12 +2682,11 @@ function renderAlarms(){
 
  const table=document.getElementById('alarmsTable');
  if(filtered.length===0){
-    table.innerHTML='<tr><td colspan="8" class="empty-state">No alarms match the current filters.</td></tr>';
+    table.innerHTML='<tr><td colspan="7" class="empty-state">No alarms match the current filters.</td></tr>';
  } else {
     table.innerHTML = filtered.map(g=>{
-      const acked = ackedAlarms.has(g.key);
       return `
-      <tr class="alarm-row ${g.severity} ${acked?'acked':''}" data-alarm-key="${g.key}" style="cursor:pointer;">
+      <tr class="alarm-row ${g.severity}" data-alarm-key="${g.key}" style="cursor:pointer;">
         <td><span class="sev-chip ${g.severity}">${g.severity}</span></td>
         <td>${g.device}</td>
         <td>${g.condition}</td>
@@ -2071,19 +2694,8 @@ function renderAlarms(){
         <td>${g.firstSeen}</td>
         <td>${g.lastSeen}</td>
         <td>${g.occurrences}</td>
-        <td><button class="btn small ${acked?'':'primary'}" data-key="${g.key}">${acked?'Unack':'Ack'}</button></td>
       </tr>`;
     }).join('');
-
-    table.querySelectorAll('button[data-key]').forEach(btn=>{
-      btn.addEventListener('click', (ev)=>{
-        ev.stopPropagation();
-        const key=btn.dataset.key;
-        if(ackedAlarms.has(key)) ackedAlarms.delete(key); else ackedAlarms.add(key);
-        saveAcks();
-        renderAlarms();
-      });
-    });
 
     table.querySelectorAll('tr[data-alarm-key]').forEach(row=>{
       row.addEventListener('click', ()=>{
@@ -2107,13 +2719,7 @@ document.querySelectorAll('#view-alarms thead th[data-sort]').forEach(th=>{
 document.getElementById('alarmSearch').addEventListener('input', renderAlarms);
 document.getElementById('alarmDomainFilter').addEventListener('change', renderAlarms);
 document.getElementById('alarmSeverityFilter').addEventListener('change', renderAlarms);
-document.getElementById('alarmAckFilter').addEventListener('change', renderAlarms);
 document.getElementById('alarmTimeRangeFilter').addEventListener('change', renderAlarms);
-document.getElementById('clearAcksBtn').addEventListener('click', ()=>{
- ackedAlarms.clear();
- saveAcks();
- renderAlarms();
-});
 
 function findAlarmEvents(group){
   return cachedEvents.filter(e=>{
@@ -2162,7 +2768,6 @@ function openAlarmModal(key, groups){
 
   document.getElementById('alarmModalTitle').textContent = `${group.device} \u2014 ${group.condition}`;
 
-  const acked = ackedAlarms.has(group.key);
   const events = findAlarmEvents(group);
   const latest = events[0];
 
@@ -2174,12 +2779,15 @@ function openAlarmModal(key, groups){
       <div class="modal-stat"><p>Occurrences</p><h4>${group.occurrences}</h4></div>
       <div class="modal-stat"><p>First Seen</p><h4>${group.firstSeen||'&mdash;'}</h4></div>
       <div class="modal-stat"><p>Last Seen</p><h4>${group.lastSeen||'&mdash;'}</h4></div>
-      <div class="modal-stat"><p>Acknowledged</p><h4>${acked ? 'Yes' : 'No'}</h4></div>
       ${alarmExtraDetailRows(group)}
     </div>`;
 
   const latestRawBlock = latest
-    ? `<h5>Latest Raw Event</h5><pre>${JSON.stringify(latest.raw, null, 2).replace(/</g,'&lt;')}</pre>`
+    ? `<h5 style="margin-top: 1rem;">Complete Raw JSON Payload</h5>
+       <pre style="background: #0b0f19; color: #38edf8; padding: 12px; border-radius: 4px; max-height: 280px; overflow: auto; font-family: 'IBM Plex Mono', monospace; font-size: 11px;">${JSON.stringify(latest.raw || latest, null, 2).replace(/</g,'&lt;')}</pre>
+       <div class="modal-actions" style="display:flex; justify-content:flex-end; margin-top: 0.5rem; margin-bottom: 1rem;">
+          <button class="btn small primary" onclick="navigator.clipboard.writeText(JSON.stringify(${JSON.stringify(latest.raw || latest).replace(/'/g, "\\'")}, null, 2)); alert('Full JSON payload copied to clipboard!');">Copy Full JSON</button>
+       </div>`
     : '';
 
   const historyRows = events.map(e=>`
@@ -2191,20 +2799,10 @@ function openAlarmModal(key, groups){
 
   body.innerHTML = `
     ${metaGrid}
-    <div class="modal-actions" style="display:flex; justify-content:flex-end; margin: 0.5rem 0 1rem;">
-      <button class="btn small ${acked?'':'primary'}" id="alarmModalAckBtn">${acked?'Unacknowledge':'Acknowledge'}</button>
-    </div>
     ${latestRawBlock}
     <h5>Occurrence History (${events.length})</h5>
-    <div id="alarmModalEvents">${historyRows || '<div class="empty-state">No matching raw events in the current buffer.</div>'}</div>
+    <div id="alarmModalEvents" style="max-height: 180px; overflow-y: auto;">${historyRows || '<div class="empty-state">No matching raw events in the current buffer.</div>'}</div>
   `;
-
-  document.getElementById('alarmModalAckBtn').addEventListener('click', ()=>{
-    if(ackedAlarms.has(group.key)) ackedAlarms.delete(group.key); else ackedAlarms.add(group.key);
-    saveAcks();
-    renderAlarms();
-    openAlarmModal(key, computeAlarmGroups());
-  });
 
   backdrop.classList.add('open');
 }
@@ -2218,7 +2816,7 @@ document.getElementById('alarmModalBackdrop').addEventListener('click', (e)=>{
 
 function updateNavBadges(groups){
  const g = groups || computeAlarmGroups();
- const openCount = g.filter(x=>x.severity!=='CLEARED' && !ackedAlarms.has(x.key)).length;
+ const openCount = g.filter(x=>x.severity!=='CLEARED').length;
  const badge = document.getElementById('navAlarmBadge');
  if (badge) {
    badge.textContent = openCount;
@@ -2228,6 +2826,8 @@ function updateNavBadges(groups){
  if (filesBadge) filesBadge.textContent = cachedFiles.length;
  const pnfBadge = document.getElementById('navPnfBadge');
  if (pnfBadge) pnfBadge.textContent = cachedPNFs.length;
+ const heartbeatBadge = document.getElementById('navHeartbeatBadge');
+ if (heartbeatBadge) heartbeatBadge.textContent = cachedEvents.filter(isHeartbeatEvent).length;
 }
 
 /* ============================================================
@@ -2260,7 +2860,7 @@ function showToast(event){
  el.innerHTML=`<strong>Critical Fault</strong>${event.sourceName}: ${event.raw?.faultFields?.alarmCondition||event.eventName}`;
  el.addEventListener('click', ()=>{ switchView('alarms'); });
  stack.appendChild(el);
- setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(12px)'; setTimeout(()=>el.remove(),250); }, 6000);
+ setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(12px)', setTimeout(()=>el.remove(),250); }, 6000);
 }
 
 function liveState(lastSeen){

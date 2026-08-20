@@ -53,8 +53,9 @@ class NetconfManager:
 
     def modules(self, device_id=None):
         """
-        Parses YANG modules from session capabilities and ensures essential
-        server modules (including ves-pnf-registration) are populated.
+        Retrieves all installed YANG modules from the NETCONF server's
+        netconf-state monitoring or capabilities, ensuring all backend 
+        modules (like sysrepoctl -l) are represented.
         """
         modules_list = []
         seen_names = set()
@@ -66,16 +67,46 @@ class NetconfManager:
                 else dict(self.sessions)
             )
 
-        # Essential Netopeer2/Sysrepo modules to guarantee in UI
-        ESSENTIAL_MODULES = [
-            {"name": "ves-pnf-registration", "revision": "2024-01-01", "capability": "urn:ves:pnf-registration"},
-            {"name": "ietf-netconf-server", "revision": "2019-11-20", "capability": "urn:ietf:params:xml:ns:yang:ietf-netconf-server"},
-            {"name": "ietf-keystore", "revision": "2019-11-20", "capability": "urn:ietf:params:xml:ns:yang:ietf-keystore"},
-            {"name": "ietf-truststore", "revision": "2019-11-20", "capability": "urn:ietf:params:xml:ns:yang:ietf-truststore"},
-            {"name": "ietf-netconf-acm", "revision": "2018-02-14", "capability": "urn:ietf:params:xml:ns:yang:ietf-netconf-acm"},
-        ]
-
         for dev_id, session in target_sessions.items():
+            # 1. Attempt to fetch all modules via ietf-netconf-monitoring (contains full sysrepo module list)
+            try:
+                monitoring_filter = """
+                <netconf-state xmlns="urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring">
+                    <schemas/>
+                </netconf-state>
+                """
+                reply = session.get(filter=("subtree", monitoring_filter))
+                xml_raw = reply.xml if isinstance(reply.xml, str) else reply.xml.decode("utf-8")
+                
+                parser = etree.XMLParser(recover=True, encoding="utf-8")
+                root = etree.fromstring(xml_raw.encode("utf-8"), parser=parser)
+                
+                # Namespace for ietf-netconf-monitoring
+                MONITORING_NS = "urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring"
+                
+                schemas = root.xpath("//ns:schema", namespaces={"ns": MONITORING_NS})
+                for schema in schemas:
+                    mod_name_node = schema.find("ns:identifier", namespaces={"ns": MONITORING_NS})
+                    rev_node = schema.find("ns:version", namespaces={"ns": MONITORING_NS})
+                    ns_node = schema.find("ns:namespace", namespaces={"ns": MONITORING_NS})
+                    
+                    if mod_name_node is not None and mod_name_node.text:
+                        mod_name = mod_name_node.text.strip()
+                        revision = rev_node.text.strip() if rev_node is not None and rev_node.text else "N/A"
+                        capability = ns_node.text.strip() if ns_node is not None and ns_node.text else ""
+                        
+                        if mod_name not in seen_names:
+                            seen_names.add(mod_name)
+                            modules_list.append({
+                                "device_id": dev_id,
+                                "name": mod_name,
+                                "revision": revision,
+                                "capability": capability
+                            })
+            except Exception as e:
+                LOGGER.warning("Could not fetch ietf-netconf-monitoring schemas for %s: %s. Falling back to capabilities.", dev_id, str(e))
+
+            # 2. Fallback/Supplement with session server capabilities
             for capability in session.server_capabilities:
                 if "module=" in capability:
                     parsed = urlparse(capability)
@@ -92,6 +123,15 @@ class NetconfManager:
                             "revision": revision,
                             "capability": capability
                         })
+
+        # Essential modules fallback check to guarantee UI stability
+        ESSENTIAL_MODULES = [
+            {"name": "ves-pnf-registration", "revision": "2024-01-01", "capability": "urn:ves:pnf-registration"},
+            {"name": "ietf-netconf-server", "revision": "2019-11-20", "capability": "urn:ietf:params:xml:ns:yang:ietf-netconf-server"},
+            {"name": "ietf-keystore", "revision": "2019-11-20", "capability": "urn:ietf:params:xml:ns:yang:ietf-keystore"},
+            {"name": "ietf-truststore", "revision": "2019-11-20", "capability": "urn:ietf:params:xml:ns:yang:ietf-truststore"},
+            {"name": "ietf-netconf-acm", "revision": "2018-02-14", "capability": "urn:ietf:params:xml:ns:yang:ietf-netconf-acm"},
+        ]
 
         if target_sessions:
             dev_id = next(iter(target_sessions.keys()))
@@ -113,7 +153,13 @@ class NetconfManager:
             raise RuntimeError(f"No active NETCONF session for device_id: {device_id}")
 
         try:
+            LOGGER.info("Sending NETCONF get_config request to device %s (source=%s)", device_id, source)
+            
+            # Execute the live NETCONF RPC call
             reply = session.get_config(source=source)
+            
+            LOGGER.info("Successfully received get_config reply from device %s", device_id)
+            
             xml_raw = reply.xml if isinstance(reply.xml, str) else reply.xml.decode("utf-8")
             
             parser = etree.XMLParser(recover=True, encoding="utf-8")
@@ -122,7 +168,6 @@ class NetconfManager:
             if root is None:
                 return f'<data xmlns="{NETCONF_NS}"/>'
 
-            # Locate <data> element
             data = root.find(f"{{{NETCONF_NS}}}data")
             if data is None:
                 for child in root:
@@ -133,67 +178,55 @@ class NetconfManager:
             if data is None or len(data) == 0:
                 return f'<data xmlns="{NETCONF_NS}"/>'
 
-            # Filter top-level tags by requested module
-            if module:
-                clean_module = module.strip().lower()
+            if not module:
+                return etree.tostring(data, encoding="unicode", pretty_print=True)
 
-                MODULE_TAG_MAP = {
-                    "ves-pnf-registration": ["pnf"],
-                    "ietf-netconf-server": ["netconf-server"],
-                    "ietf-keystore": ["keystore"],
-                    "ietf-truststore": ["truststore"],
-                    "ietf-netconf-acm": ["nacm"],
-                    "ietf-netconf-monitoring": ["netconf-state"]
-                }
+            clean_module = module.strip().lower()
+            clean_module_alt = clean_module.replace("_", "-")
+            clean_module_alt2 = clean_module.replace("-", "_")
 
-                target_tags = MODULE_TAG_MAP.get(clean_module, [clean_module])
+            global_namespaces = dict(data.nsmap) if data.nsmap else {}
+            for child in data:
+                if child.nsmap:
+                    global_namespaces.update(child.nsmap)
 
-                global_namespaces = dict(data.nsmap) if data.nsmap else {}
-                for child in data:
-                    if child.nsmap:
-                        global_namespaces.update(child.nsmap)
+            matching_nodes = []
+            for child in data:
+                qname = etree.QName(child.tag)
+                local_tag = qname.localname.lower()
+                ns_uri = (qname.namespace or "").lower()
 
-                matching_nodes = []
-                for child in data:
-                    qname = etree.QName(child.tag)
-                    local_tag = qname.localname.lower()
-                    ns_uri = (qname.namespace or "").lower()
+                if (
+                    clean_module in local_tag or 
+                    clean_module_alt in local_tag or 
+                    clean_module_alt2 in local_tag or
+                    clean_module in ns_uri or 
+                    clean_module_alt in ns_uri or 
+                    clean_module_alt2 in ns_uri
+                ):
+                    matching_nodes.append(child)
+                    continue
 
-                    if any(tag == local_tag or tag in local_tag for tag in target_tags):
-                        matching_nodes.append(child)
-                        continue
-
-                    if clean_module in ns_uri:
-                        matching_nodes.append(child)
-                        continue
-
-                    for prefix, uri in global_namespaces.items():
-                        if uri and clean_module in str(uri).lower() and ns_uri == str(uri).lower():
+                for prefix, uri in global_namespaces.items():
+                    if uri and ns_uri == str(uri).lower():
+                        uri_lower = str(uri).lower()
+                        if clean_module in uri_lower or clean_module_alt in uri_lower or clean_module_alt2 in uri_lower:
                             matching_nodes.append(child)
                             break
 
-                # Device Isolation Filter: Safely check for matching serial numbers if present
-                if clean_module == "ves-pnf-registration" and device_id and device_id != "local-netopeer":
-                    filtered_pnf = []
-                    for child in matching_nodes:
-                        if etree.QName(child.tag).localname.lower() == "pnf":
-                            sn_node = child.find(".//*[local-name()='serial-number']")
-                            if sn_node is not None and sn_node.text and sn_node.text.strip() == device_id:
-                                filtered_pnf.append(child)
-                    if filtered_pnf:
-                        matching_nodes = filtered_pnf
+            container = etree.Element(f"{{{NETCONF_NS}}}data")
+            for node in matching_nodes:
+                container.append(etree.fromstring(etree.tostring(node)))
 
-                container = etree.Element(f"{{{NETCONF_NS}}}data")
-                for node in matching_nodes:
-                    container.append(etree.fromstring(etree.tostring(node)))
+            if len(container) == 0:
+                return f'<data xmlns="{NETCONF_NS}"/>'
 
-                return etree.tostring(container, encoding="unicode", pretty_print=True)
-
-            return etree.tostring(data, encoding="unicode", pretty_print=True)
+            return etree.tostring(container, encoding="unicode", pretty_print=True)
 
         except Exception as e:
-            LOGGER.error("get_config error on %s: %s", device_id, str(e))
-            return f'<data xmlns="{NETCONF_NS}"/>'
+            # This will now print the exact traceback or error to your logs instead of silently returning empty
+            LOGGER.error("get_config critical error on %s: %s", device_id, str(e), exc_info=True)
+            raise RuntimeError(f"NETCONF get_config failed: {str(e)}") from e
     
     def edit_config(self, device_id, config=None, target="candidate", default_operation="merge", **kwargs):
         config = config or kwargs.get("config_xml")
@@ -223,7 +256,8 @@ class NetconfManager:
 
         try:
             reply = session.edit_config(target=target, config=config_xml, default_operation=default_operation)
-            return reply.xml
+            xml_out = reply.xml if isinstance(reply.xml, str) else (reply.xml.decode("utf-8") if reply.xml is not None else "")
+            return xml_out
         except RPCError as exc:
             if target == "candidate":
                 try:
@@ -240,7 +274,8 @@ class NetconfManager:
 
         try:
             reply = session.validate(source=source)
-            return reply.xml
+            xml_out = reply.xml if isinstance(reply.xml, str) else (reply.xml.decode("utf-8") if reply.xml is not None else "")
+            return xml_out
         except RPCError as exc:
             raise RuntimeError(f"Validation Failed: {exc.message}") from exc
 
@@ -250,7 +285,9 @@ class NetconfManager:
             raise RuntimeError(f"No active NETCONF session for device_id: {device_id}")
         
         try:
-            return session.commit().xml
+            reply = session.commit()
+            xml_out = reply.xml if isinstance(reply.xml, str) else (reply.xml.decode("utf-8") if reply.xml is not None else "")
+            return xml_out
         except RPCError as exc:
             raise RuntimeError(f"Commit Failed: {exc.message}") from exc
 
@@ -260,7 +297,9 @@ class NetconfManager:
             raise RuntimeError(f"No active NETCONF session for device_id: {device_id}")
 
         try:
-            return session.discard_changes().xml
+            reply = session.discard_changes()
+            xml_out = reply.xml if isinstance(reply.xml, str) else (reply.xml.decode("utf-8") if reply.xml is not None else "")
+            return xml_out
         except RPCError as exc:
             raise RuntimeError(f"Discard Changes Failed: {exc.message}") from exc
 
