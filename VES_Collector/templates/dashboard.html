@@ -149,7 +149,6 @@
       <li><button class="nav-item" data-view="files"><span class="nav-icon">&#8862;</span><span class="nav-label">PM</span><span class="nav-badge" id="navFilesBadge">0</span></button></li>
       <li><button class="nav-item" data-view="heartbeat"><span class="nav-icon">&#9829;</span><span class="nav-label">Heartbeat</span><span class="nav-badge" id="navHeartbeatBadge">0</span></button></li>
       <li><button class="nav-item" data-view="explorer"><span class="nav-icon">&#9638;</span><span class="nav-label">Event Explorer</span></button></li>
-      <li><button class="nav-item" data-view="pnf"><span class="nav-icon">&#9889;</span><span class="nav-label">PNF Registration</span><span class="nav-badge" id="navPnfBadge">0</span></button></li>
       <li><button class="nav-item" data-view="alarms"><span class="nav-icon">&#9650;</span><span class="nav-label">FM</span><span class="nav-badge alert" id="navAlarmBadge">0</span></button></li>
     </ul>
     <div class="sidebar-foot">Single-instance collector<br>PostgreSQL Persistent Store</div>
@@ -540,34 +539,6 @@
         </div>
       </section>
 
-      <section class="view-panel" id="view-pnf">
-        <div class="panel">
-          <h3>PNF Registration <span class="count-pill" id="pnfCountPill">0 registered</span>
-            <button class="btn small" id="configurePnfForwardBtn">Configure Forwarding &rarr;</button>
-          </h3>
-          <p class="panel-note">Every registered PNF is forwarded automatically to the destination below as soon as it's received &mdash; this panel only controls where forwarded records are sent, not whether forwarding happens.</p>
-
-          <div class="controls">
-            <input id="pnfSearch" placeholder="Search PNF name, vendor, or IP address" autocomplete="off">
-            <select id="pnfVendorFilter">
-              <option value="">All Vendors</option>
-            </select>
-          </div>
-
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th><th>PNF Name</th><th>Vendor</th><th>Model</th>
-                  <th>OAM IP</th><th>Protocol</th><th>Username</th><th>Forward Status</th><th></th>
-                </tr>
-              </thead>
-              <tbody id="pnfsTable"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
       <section class="view-panel" id="view-alarms">
         <div class="panel">
           <h3>Alarm Correlation</h3>
@@ -609,6 +580,7 @@
                   <th data-sort="firstSeen">First Seen <span class="sort-arrow"></span></th>
                   <th data-sort="lastSeen">Last Seen <span class="sort-arrow"></span></th>
                   <th data-sort="occurrences">Occurrences <span class="sort-arrow"></span></th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody id="alarmsTable"></tbody>
@@ -718,53 +690,45 @@
   </div>
 </div>
 
-<div class="modal-backdrop" id="pnfModalBackdrop">
-  <div class="modal">
-    <div class="modal-head">
-      <h3>Configure PNF Forwarding</h3>
-      <button class="modal-close" id="pnfModalClose">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem;">
-        <div>
-          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Forward Host</label>
-          <input type="text" id="pnfForwardHost" style="width:100%;" placeholder="e.g. 10.0.0.1" autocomplete="off">
-        </div>
-        <div>
-          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Forward Port</label>
-          <input type="text" id="pnfForwardPort" style="width:100%;" placeholder="e.g. 830" autocomplete="off">
-        </div>
-        <div>
-          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">NETCONF Username</label>
-          <input type="text" id="pnfForwardUsername" style="width:100%;" placeholder="e.g. archon" autocomplete="off">
-        </div>
-        <div>
-          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">SSH Private Key Path</label>
-          <input type="text" id="pnfForwardKeyFilename" style="width:100%;" placeholder="e.g. /home/archon/.ssh/id_ed25519" autocomplete="off">
-        </div>
-        <div>
-          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Key Passphrase (optional)</label>
-          <input type="password" id="pnfForwardKeyPassphrase" style="width:100%;" placeholder="Leave blank if key has no passphrase" autocomplete="off">
-        </div>
-      </div>
-      <div class="modal-actions" style="display:flex; justify-content:flex-end;">
-        <button class="btn primary" id="savePnfConfigBtn">Save Configuration</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
+/* ============================================================
+    Global Helper: Time Formatting
+    ============================================================ */
+function formatReadableTime(dateStr) {
+  if (!dateStr) return '-';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  } catch(e) {
+    return dateStr;
+  }
+}
+
 /* ============================================================
     Global Helper: Safe Fetch
     ============================================================ */
 async function safeFetch(url, options = {}) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error('[ERROR] safeFetch failed at URL:', url, 'Error:', err);
+    throw err;
   }
-  return await response.json();
 }
 
 /* ============================================================
@@ -773,7 +737,6 @@ async function safeFetch(url, options = {}) {
 let cachedEvents = [];
 let cachedDevices = [];
 let cachedFiles = [];
-let cachedPNFs = [];
 let domainChart = null;
 let hbRateChart = null;
 let chartInitialized = false;
@@ -797,35 +760,37 @@ let hbAlerts = JSON.parse(localStorage.getItem('vesHbAlerts') || '[]');
 let hbSourceRegistry = {};
 
 const VIEW_META = {
-  overview:  { title:'Overview',                subtitle:'Live network event summary' },
-  cm:        { title:'CM',                      subtitle:'NETCONF device configuration' },
-  files:     { title:'PM',                      subtitle:'fileReady references from stndDefined events' },
-  heartbeat: { title:'Heartbeat',               subtitle:'Device-centric real-time heartbeat health & telemetry suite' },
-  explorer:  { title:'Event Explorer',          subtitle:'Raw event stream, searchable & sortable' },
-  pnf:       { title:'PNF Registration',        subtitle:'Registered Physical Network Functions' },
-  alarms:    { title:'FM',                      subtitle:'Correlated fault, stndDefined & threshold conditions' },
+  overview:  { title:'Overview',                 subtitle:'Live network event summary' },
+  cm:        { title:'CM',                       subtitle:'NETCONF device configuration' },
+  files:     { title:'PM',                       subtitle:'fileReady references from stndDefined events' },
+  alarms:    { title:'FM',                       subtitle:'Correlated fault, stndDefined & threshold conditions' },
+  heartbeat: { title:'Heartbeat',                subtitle:'Device-centric real-time heartbeat health & telemetry suite' },
+  explorer:  { title:'Event Explorer',           subtitle:'Raw event stream, searchable & sortable' },
 };
 
 /* ============================================================
     Navigation & View Management
     ============================================================ */
 function switchView(view){
-  currentView = view;
-  document.querySelectorAll('.view-panel').forEach(v=>v.classList.remove('active'));
-  document.getElementById('view-'+view).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===view));
-  document.getElementById('viewTitle').textContent = VIEW_META[view].title;
-  document.getElementById('viewSubtitle').textContent = VIEW_META[view].subtitle;
-  document.getElementById('sidebar').classList.remove('open');
+  try {
+    currentView = view;
+    document.querySelectorAll('.view-panel').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+view).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===view));
+    document.getElementById('viewTitle').textContent = VIEW_META[view].title;
+    document.getElementById('viewSubtitle').textContent = VIEW_META[view].subtitle;
+    document.getElementById('sidebar').classList.remove('open');
 
-  if(view==='cm') {
-    loadCM();
-  }
+    if(view==='cm') {
+      loadCM();
+    }
 
-  if(view==='pnf') renderPNFs();
-  if(view==='heartbeat') {
-    processHeartbeatData();
-    renderHeartbeatModule();
+    if(view==='heartbeat') {
+      processHeartbeatData();
+      renderHeartbeatModule();
+    }
+  } catch (err) {
+    console.error('[ERROR] switchView failed for view:', view, 'Error:', err);
   }
 }
 
@@ -848,50 +813,56 @@ document.addEventListener('keydown', (e)=>{
 
 document.getElementById('globalSearch').addEventListener('input', (e)=>{
   const val = e.target.value;
-  if(val.length>0 && currentView!=='explorer' && currentView!=='pnf'){
+  if(val.length>0 && currentView!=='explorer'){
     switchView('explorer');
   }
   document.getElementById('searchBox').value = val;
   document.getElementById('deviceSearch').value = val;
-  document.getElementById('pnfSearch').value = val;
   const hbSearch = document.getElementById('hbSourceSearch');
   if(hbSearch) hbSearch.value = val;
   renderEvents();
   renderDevices();
-  renderPNFs();
   processHeartbeatData();
   renderHeartbeatModule();
 });
 
 function tickClock(){
-  document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+  try {
+    document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+  } catch(err) {
+    console.error('[ERROR] tickClock failed:', err);
+  }
 }
 setInterval(tickClock, 1000);
 tickClock();
 
 async function loadStats(){
   let stats;
-  try{ stats = await safeFetch('/api/stats'); } catch(e){ return; }
+  try{
+    stats = await safeFetch('/api/stats');
+    ['totalEvents','faultEvents','heartbeatEvents','notificationEvents',
+     'stateChangeEvents','thresholdEvents','pnfRegistrationEvents','stndDefinedEvents'
+    ].forEach(k=>{
+       const el=document.getElementById(k);
+       if(el) el.innerText=stats[k]||0;
+    });
 
-  ['totalEvents','faultEvents','heartbeatEvents','notificationEvents',
-   'stateChangeEvents','thresholdEvents','pnfRegistrationEvents','stndDefinedEvents'
-  ].forEach(k=>{
-     const el=document.getElementById(k);
-     if(el) el.innerText=stats[k]||0;
-  });
+    const data=[
+      stats.faultEvents||0, stats.heartbeatEvents||0,
+      stats.notificationEvents||0, stats.stateChangeEvents||0, stats.thresholdEvents||0,
+      stats.pnfRegistrationEvents||0, stats.stndDefinedEvents||0
+    ];
 
-  const data=[
-    stats.faultEvents||0, stats.heartbeatEvents||0,
-    stats.notificationEvents||0, stats.stateChangeEvents||0, stats.thresholdEvents||0,
-    stats.pnfRegistrationEvents||0, stats.stndDefinedEvents||0
-  ];
-
-  if(!chartInitialized){
-     createDomainChart(data);
-     chartInitialized = true;
-  } else if (domainChart) {
-     domainChart.data.datasets[0].data = data;
-     domainChart.update();
+    if(!chartInitialized){
+       createDomainChart(data);
+       chartInitialized = true;
+    } else if (domainChart) {
+       domainChart.data.datasets[0].data = data;
+       domainChart.update();
+    }
+  } catch(e){
+    console.error('[ERROR] loadStats failed:', e);
+    return;
   }
 }
 
@@ -905,11 +876,7 @@ let activeXmlDoc = null;
 let pinnedModules = JSON.parse(localStorage.getItem('cm_pinned_modules') || '[]');
 let currentCmModules = [];
 let expandedNodePaths = new Set();
-
-const CM_ALLOWED_MODULES = [
-    // 'ves-pnf-registration',
-    // 'ietf-netconf',
-];
+const CM_ALLOWED_MODULES = [];
 
 function isCmModuleAllowed(moduleName) {
   if (!CM_ALLOWED_MODULES || CM_ALLOWED_MODULES.length === 0) return true;
@@ -934,75 +901,53 @@ function togglePinModule(event, moduleName) {
 }
 
 function renderCmModules(modules) {
-  currentCmModules = filterCmModules(modules);
-  const container = document.getElementById('cmModuleList');
-  const countBadge = document.getElementById('cmModuleCount');
+  try {
+    currentCmModules = filterCmModules(modules);
+    const container = document.getElementById('cmModuleList');
+    const countBadge = document.getElementById('cmModuleCount');
 
-  if (!container) return;
+    if (!container) return;
+    if (countBadge) countBadge.textContent = `${currentCmModules.length} Loaded`;
 
-  if (countBadge) {
-    countBadge.textContent = `${currentCmModules.length} Loaded`;
-  }
+    if (!currentCmModules || currentCmModules.length === 0) {
+      const hasHiddenModules = Array.isArray(modules) && modules.length > 0;
+      container.innerHTML = hasHiddenModules
+        ? `<div style="padding: 1rem; text-align: center; color: var(--text-muted);">All ${modules.length} installed module(s) are hidden by allowlist.</div>`
+        : `<div style="padding: 1rem; text-align: center; color: var(--text-muted);">No active modules found.</div>`;
+      return;
+    }
 
-  if (!currentCmModules || currentCmModules.length === 0) {
-    const hasHiddenModules = Array.isArray(modules) && modules.length > 0;
-    container.innerHTML = hasHiddenModules
-      ? `<div style="padding: 1rem; text-align: center; color: var(--text-muted);">
-          All ${modules.length} installed module(s) are hidden by the CM_ALLOWED_MODULES allowlist.
-         </div>`
-      : `<div style="padding: 1rem; text-align: center; color: var(--text-muted);">
-          No active modules found on Netopeer2.
-         </div>`;
-    return;
-  }
+    const sortedModules = [...currentCmModules].sort((a, b) => {
+      const aPinned = pinnedModules.includes(a.name);
+      const bPinned = pinnedModules.includes(b.name);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
-  const sortedModules = [...currentCmModules].sort((a, b) => {
-    const aPinned = pinnedModules.includes(a.name);
-    const bPinned = pinnedModules.includes(b.name);
-    if (aPinned && !bPinned) return -1;
-    if (!aPinned && bPinned) return 1;
-    return a.name.localeCompare(b.name);
-  });
-
-  container.innerHTML = sortedModules.map(mod => {
-    const isPinned = pinnedModules.includes(mod.name);
-    return `
-      <div 
-        class="cm-module-card ${isPinned ? 'pinned' : ''}" 
-        onclick="selectCmModule('${mod.name}')"
-        title="Click to view configuration for ${mod.name}"
-      >
-        <div class="cm-module-info">
-          <div class="cm-module-name">
-            ${isPinned ? '📌 ' : ''}${mod.name}
+    container.innerHTML = sortedModules.map(mod => {
+      const isPinned = pinnedModules.includes(mod.name);
+      return `
+        <div class="cm-module-card ${isPinned ? 'pinned' : ''}" onclick="selectCmModule('${mod.name}')" title="View configuration for ${mod.name}">
+          <div class="cm-module-info">
+            <div class="cm-module-name">${isPinned ? '📌 ' : ''}${mod.name}</div>
+            <div class="cm-module-meta">Rev: ${mod.revision || 'N/A'} &nbsp;|&nbsp; ${mod.capability || 'Standard'}</div>
           </div>
-          <div class="cm-module-meta">
-            Rev: ${mod.revision || 'N/A'} &nbsp;|&nbsp; ${mod.capability || 'Standard'}
-          </div>
+          <button class="cm-pin-btn ${isPinned ? 'is-pinned' : ''}" onclick="togglePinModule(event, '${mod.name}')" title="${isPinned ? 'Unpin module' : 'Pin module'}">
+            ${isPinned ? '★ Unpin' : '☆ Pin'}
+          </button>
         </div>
-
-        <button 
-          class="cm-pin-btn ${isPinned ? 'is-pinned' : ''}" 
-          onclick="togglePinModule(event, '${mod.name}')" 
-          title="${isPinned ? 'Unpin module' : 'Pin module to top'}"
-        >
-          ${isPinned ? '★ Unpin' : '☆ Pin'}
-        </button>
-      </div>
-    `;
-  }).join('');
+      `;
+    }).join('');
+  } catch(err) {
+    console.error('[ERROR] renderCmModules failed:', err);
+  }
 }
 
 function selectCmModule(moduleName) {
   const moduleSelect = document.getElementById('cmModuleSelect');
-  if (moduleSelect) {
-    moduleSelect.value = moduleName;
-  }
-
-  document.querySelectorAll('.cm-module-card').forEach(card => {
-    card.classList.remove('active-selected');
-  });
-
+  if (moduleSelect) moduleSelect.value = moduleName;
+  document.querySelectorAll('.cm-module-card').forEach(card => card.classList.remove('active-selected'));
   fetchCmConfig(moduleName);
 }
 
@@ -1020,26 +965,20 @@ async function loadCM() {
         statusPill.textContent = 'Connecting...';
         statusPill.className = 'count-pill warn';
       }
-
       try {
         const autoConnectRes = await safeFetch('/api/cm/connect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            device_id: "local-netopeer",
-            host: "127.0.0.1",
-            port: 830,
-            username: "archon",
-            key_filename: "/home/archon/.ssh/id_ed25519"
+            device_id: "local-netopeer", host: "127.0.0.1", port: 830, username: "archon", key_filename: "/home/archon/.ssh/id_ed25519"
           })
         });
-
         if (autoConnectRes.status === 'connected') {
           sessionRes = await safeFetch('/api/cm/sessions');
           devices = sessionRes.connected_devices || [];
         }
       } catch (autoErr) {
-        console.warn("Auto-connect attempt failed:", autoErr);
+        console.warn("Auto-connect failed:", autoErr);
       }
     }
 
@@ -1058,9 +997,7 @@ async function loadCM() {
 
     if (deviceSelect) {
       deviceSelect.innerHTML = devices.map(id => `<option value="${id}">${id}</option>`).join('');
-      if (!activeCmDevice || !devices.includes(activeCmDevice)) {
-        activeCmDevice = devices[0];
-      }
+      if (!activeCmDevice || !devices.includes(activeCmDevice)) activeCmDevice = devices[0];
       deviceSelect.value = activeCmDevice;
     }
 
@@ -1072,22 +1009,15 @@ async function loadCM() {
         moduleSelect.innerHTML = '<option value="">All Modules (Full Config)</option>' +
           modules.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
       }
-
       renderCmModules(modules);
-
-      if (modules.some(m => m.name === 'ves-pnf-registration')) {
-        if (moduleSelect) moduleSelect.value = 'ves-pnf-registration';
-        fetchCmConfig('ves-pnf-registration');
-        return;
-      }
     } else if (moduleSelect) {
       moduleSelect.innerHTML = '<option value="">All Modules (Full Config)</option>';
       renderCmModules(modulesRaw);
     }
 
     fetchCmConfig();
-
   } catch (err) {
+    console.error('[ERROR] loadCM failed:', err);
     if (statusPill) {
       statusPill.textContent = 'Disconnected';
       statusPill.className = 'count-pill bad';
@@ -1106,7 +1036,7 @@ async function fetchCmConfig(moduleName) {
 
   if (!activeCmDevice) return;
 
-  treeContainer.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">Fetching hierarchy tree from Netopeer2...</div>';
+  treeContainer.innerHTML = '<div style="color:var(--text-muted); padding:20px; text-align:center;">Fetching hierarchy tree...</div>';
   output.value = 'Fetching configuration...';
   if (statusText) statusText.textContent = `Loading ${module || 'full datastore'} (${datastore})...`;
 
@@ -1116,7 +1046,6 @@ async function fetchCmConfig(moduleName) {
 
     const res = await safeFetch(url);
     const xmlText = res.config !== undefined ? res.config : res;
-
     output.value = xmlText;
 
     const parser = new DOMParser();
@@ -1134,9 +1063,9 @@ async function fetchCmConfig(moduleName) {
       statePill.textContent = 'Editing Mode';
       statePill.className = 'count-pill warn';
     }
-    
     if (saveBtn && !isCmDirty) saveBtn.disabled = false;
   } catch (err) {
+    console.error('[ERROR] fetchCmConfig failed:', err);
     treeContainer.innerHTML = `<div style="color:#ff4d5e; padding:20px;">Error loading configuration: ${err.message}</div>`;
     output.value = `<!-- Error: ${err.message || 'Server error'} -->`;
     if (statusText) statusText.textContent = 'Error loading datastore';
@@ -1149,9 +1078,7 @@ function getCurrentlyExpandedPaths(container) {
   if (!container) return paths;
   container.querySelectorAll('[data-node-path]').forEach(el => {
     const children = el.querySelector(':scope > .cm-tree-children');
-    if (children && children.style.display !== 'none') {
-      paths.add(el.dataset.nodePath);
-    }
+    if (children && children.style.display !== 'none') paths.add(el.dataset.nodePath);
   });
   return paths;
 }
@@ -1161,15 +1088,12 @@ function renderXmlHierarchyTree(xmlDoc, container) {
     const currentPaths = getCurrentlyExpandedPaths(container);
     currentPaths.forEach(p => expandedNodePaths.add(p));
   }
-
   container.innerHTML = '';
   const root = xmlDoc.documentElement;
-
   if (!root) {
     container.innerHTML = '<div style="color:var(--text-muted);">Empty Configuration Datastore</div>';
     return;
   }
-
   const rootElement = createTreeNodeElement(root, true, "", 0);
   container.appendChild(rootElement);
 }
@@ -1184,11 +1108,7 @@ function createTreeNodeElement(node, isRoot = false, parentPath = "", siblingInd
   wrapper.dataset.nodePath = nodePath;
 
   const elementChildren = Array.from(node.childNodes).filter(n => n.nodeType === 1);
-  const textContent = Array.from(node.childNodes)
-    .filter(n => n.nodeType === 3)
-    .map(n => n.nodeValue.trim())
-    .join('');
-
+  const textContent = Array.from(node.childNodes).filter(n => n.nodeType === 3).map(n => n.nodeValue.trim()).join('');
   const hasChildren = elementChildren.length > 0;
 
   const row = document.createElement('div');
@@ -1198,10 +1118,8 @@ function createTreeNodeElement(node, isRoot = false, parentPath = "", siblingInd
 
   const toggleBtn = document.createElement('span');
   toggleBtn.style.cursor = 'pointer';
-  toggleBtn.style.display = 'inline-block';
   toggleBtn.style.width = '16px';
   toggleBtn.style.textAlign = 'center';
-  toggleBtn.style.userSelect = 'none';
   toggleBtn.style.fontWeight = 'bold';
   toggleBtn.style.color = '#ffd23f';
 
@@ -1225,13 +1143,11 @@ function createTreeNodeElement(node, isRoot = false, parentPath = "", siblingInd
 
   const childrenContainer = document.createElement('div');
   childrenContainer.className = 'cm-tree-children';
-
   const isExpanded = expandedNodePaths.has(nodePath);
   childrenContainer.style.display = isExpanded ? 'block' : 'none';
 
   if (hasChildren) {
     toggleBtn.textContent = isExpanded ? '-' : '+';
-
     const tagCounts = {};
     elementChildren.forEach(child => {
       const tag = child.tagName;
@@ -1245,11 +1161,8 @@ function createTreeNodeElement(node, isRoot = false, parentPath = "", siblingInd
       const isCollapsed = childrenContainer.style.display === 'none';
       childrenContainer.style.display = isCollapsed ? 'block' : 'none';
       toggleBtn.textContent = isCollapsed ? '-' : '+';
-      if (isCollapsed) {
-        expandedNodePaths.add(nodePath);
-      } else {
-        expandedNodePaths.delete(nodePath);
-      }
+      if (isCollapsed) expandedNodePaths.add(nodePath);
+      else expandedNodePaths.delete(nodePath);
     });
   } else {
     toggleBtn.textContent = '•';
@@ -1272,16 +1185,12 @@ function createTreeNodeElement(node, isRoot = false, parentPath = "", siblingInd
         node.textContent = valueInput.value;
         markCmAsDirty();
       });
-
       row.appendChild(valueInput);
     }
   }
 
   wrapper.appendChild(row);
-  if (hasChildren) {
-    wrapper.appendChild(childrenContainer);
-  }
-
+  if (hasChildren) wrapper.appendChild(childrenContainer);
   return wrapper;
 }
 
@@ -1300,12 +1209,8 @@ function markCmAsDirty() {
 }
 
 function serializeTreeToXmlString() {
-  if (currentCmViewMode === 'raw') {
-    return document.getElementById('cmConfigOutput').value;
-  }
-  if (!activeXmlDoc) {
-    return document.getElementById('cmConfigOutput').value;
-  }
+  if (currentCmViewMode === 'raw') return document.getElementById('cmConfigOutput').value;
+  if (!activeXmlDoc) return document.getElementById('cmConfigOutput').value;
   const serializer = new XMLSerializer();
   return serializer.serializeToString(activeXmlDoc);
 }
@@ -1316,40 +1221,26 @@ async function applyCmEdits() {
   const statusText = document.getElementById('cmEditorStatus');
   const statePill = document.getElementById('cmEditorStatePill');
 
-  if (!activeCmDevice) {
-    alert("Error: No active NETCONF device selected.");
-    return;
-  }
-
+  if (!activeCmDevice) { alert("Error: No active NETCONF device selected."); return; }
   if (statusText) statusText.textContent = `Applying edits to '${datastore}'...`;
 
   try {
     const response = await fetch('/api/cm/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        device_id: activeCmDevice,
-        datastore: datastore,
-        config: configXml
-      })
+      body: JSON.stringify({ device_id: activeCmDevice, datastore: datastore, config: configXml })
     });
-
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to apply edits');
-    }
+    if (!response.ok) throw new Error(data.error || 'Failed to apply edits');
 
     if (statusText) statusText.textContent = `Successfully updated '${datastore}' datastore on server!`;
     if (statePill) {
       statePill.textContent = "Staged in Candidate";
       statePill.className = "count-pill warn";
     }
-
     isCmDirty = false;
     document.getElementById('cmSaveConfigBtn').disabled = true;
-
-    alert(`Success!\nEdits applied to '${datastore}' datastore on Netopeer2.\nNow click 'Validate' or 'Commit to Live'.`);
+    alert(`Success!\nEdits applied to '${datastore}' datastore.`);
   } catch (err) {
     if (statusText) statusText.textContent = `Edit failed: ${err.message}`;
     alert(`Netopeer2 Rejected Edit:\n${err.message}`);
@@ -1359,12 +1250,7 @@ async function applyCmEdits() {
 async function validateCmConfig() {
   const datastore = document.getElementById('cmDatastore').value;
   const statusText = document.getElementById('cmEditorStatus');
-
-  if (!activeCmDevice) {
-    alert("Error: No active NETCONF device selected.");
-    return;
-  }
-
+  if (!activeCmDevice) { alert("Error: No active NETCONF device selected."); return; }
   if (statusText) statusText.textContent = `Validating '${datastore}' against YANG schemas...`;
 
   try {
@@ -1373,16 +1259,10 @@ async function validateCmConfig() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_id: activeCmDevice, datastore: datastore })
     });
-
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Validation failed');
-    }
-
-    if (statusText) statusText.textContent = `Validation Passed: Datastore '${datastore}' is 100% YANG compliant!`;
-
-    alert(`Validation Successful!\nDatastore '${datastore}' complies with all active YANG models on Netopeer2.`);
+    if (!response.ok) throw new Error(data.error || 'Validation failed');
+    if (statusText) statusText.textContent = `Validation Passed: Datastore '${datastore}' is YANG compliant!`;
+    alert(`Validation Successful!\nDatastore '${datastore}' complies with all active YANG models.`);
   } catch (err) {
     if (statusText) statusText.textContent = `Validation Error: ${err.message}`;
     alert(`YANG Validation Error:\n${err.message}`);
@@ -1392,39 +1272,25 @@ async function validateCmConfig() {
 async function commitCmConfig() {
   const statusText = document.getElementById('cmEditorStatus');
   const statePill = document.getElementById('cmEditorStatePill');
-
-  if (!activeCmDevice) {
-    alert("Error: No active NETCONF device selected.");
-    return;
-  }
-
-  if (!confirm(`Commit candidate datastore to live running configuration on ${activeCmDevice}?`)) {
-    return;
-  }
+  if (!activeCmDevice) { alert("Error: No active NETCONF device selected."); return; }
+  if (!confirm(`Commit candidate datastore to live running configuration on ${activeCmDevice}?`)) return;
 
   if (statusText) statusText.textContent = 'Committing candidate to live running configuration...';
-
   try {
     const response = await fetch('/api/cm/commit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_id: activeCmDevice })
     });
-
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Commit failed');
-    }
+    if (!response.ok) throw new Error(data.error || 'Commit failed');
 
     if (statusText) statusText.textContent = 'Commit Successful! Live configuration updated.';
     if (statePill) {
       statePill.textContent = "Live Running";
       statePill.className = "count-pill good";
     }
-
-    alert("Commit Successful!\nCandidate changes have been committed to live running configuration.");
-
+    alert("Commit Successful!\nCandidate changes committed to live running configuration.");
     fetchCmConfig();
   } catch (err) {
     if (statusText) statusText.textContent = `Commit Failed: ${err.message}`;
@@ -1435,7 +1301,6 @@ async function commitCmConfig() {
 async function discardCmEdits() {
   const statusText = document.getElementById('cmEditorStatus');
   if (!activeCmDevice) return;
-
   if (statusText) statusText.textContent = 'Discarding candidate changes...';
 
   try {
@@ -1444,15 +1309,11 @@ async function discardCmEdits() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_id: activeCmDevice })
     });
-
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Discard failed');
-    }
+    if (!response.ok) throw new Error(data.error || 'Discard failed');
 
     if (statusText) statusText.textContent = 'Candidate changes discarded.';
-    alert("Candidate datastore reverted to live running configuration.");
+    alert("Candidate datastore reverted.");
     fetchCmConfig();
   } catch (err) {
     if (statusText) statusText.textContent = `Discard Failed: ${err.message}`;
@@ -1473,9 +1334,7 @@ function switchCmViewMode(mode) {
     treeBtn.className = 'btn small primary';
     rawBtn.className = 'btn small';
   } else {
-    if (activeXmlDoc) {
-      rawTextarea.value = serializeTreeToXmlString();
-    }
+    if (activeXmlDoc) rawTextarea.value = serializeTreeToXmlString();
     treeContainer.style.display = 'none';
     rawTextarea.style.display = 'block';
     treeBtn.className = 'btn small';
@@ -1489,14 +1348,11 @@ document.getElementById('cmToggleRawModeBtn').addEventListener('click', () => sw
 document.getElementById('cmExpandAllBtn').addEventListener('click', () => {
   const containers = document.querySelectorAll('#cmTreeContainer div');
   const isAnyHidden = Array.from(containers).some(c => c.style.display === 'none');
-  
   containers.forEach(c => {
     if (c.previousElementSibling && c.previousElementSibling.querySelector('span')) {
       c.style.display = isAnyHidden ? 'block' : 'none';
       const toggle = c.previousElementSibling.querySelector('span');
-      if (toggle && toggle.textContent !== '•') {
-        toggle.textContent = isAnyHidden ? '-' : '+';
-      }
+      if (toggle && toggle.textContent !== '•') toggle.textContent = isAnyHidden ? '-' : '+';
     }
   });
 });
@@ -1512,33 +1368,31 @@ document.getElementById('cmDeviceSelect').addEventListener('change', (e) => {
   activeCmDevice = e.target.value;
   loadCM();
 });
-
 document.getElementById('cmConfigOutput').addEventListener('input', markCmAsDirty);
 
 function createDomainChart(data){
- const ctx=document.getElementById('domainChart');
- domainChart=new Chart(ctx,{
-  type:'doughnut',
-  data:{
-   labels:['Fault','Heartbeat','Notification','State Change','Threshold','PNF Registration','STND'],
-   datasets:[{
-    data:data,
-    backgroundColor:['#ff4d5e','#22d3c7','#34d399','#9d8cff','#ffd23f','#ff9f43','#6cc3ff','#f0a8ff'],
-    borderColor:'#10151c',
-    borderWidth:2
-   }]
-  },
-  options:{
-   responsive:true, maintainAspectRatio:false, cutout:'70%',
-   plugins:{ legend:{ position:'bottom', labels:{ color:'#8b96a6', font:{ family:'IBM Plex Sans', size:11 }, boxWidth:10, padding:12 } } }
-  }
- });
+  const ctx=document.getElementById('domainChart');
+  domainChart=new Chart(ctx,{
+    type:'doughnut',
+    data:{
+     labels:['Fault','Heartbeat','Notification','State Change','Threshold','PNF Registration','STND'],
+     datasets:[{
+      data:data,
+      backgroundColor:['#ff4d5e','#22d3c7','#34d399','#9d8cff','#ffd23f','#ff9f43','#6cc3ff','#f0a8ff'],
+      borderColor:'#10151c',
+      borderWidth:2
+     }]
+    },
+    options:{
+     responsive:true, maintainAspectRatio:false, cutout:'70%',
+     plugins:{ legend:{ position:'bottom', labels:{ color:'#8b96a6', font:{ family:'IBM Plex Sans', size:11 }, boxWidth:10, padding:12 } } }
+    }
+  });
 }
 
 /* ============================================================
     Advanced Heartbeat Monitoring Suite Logic (Device Centric)
     ============================================================ */
-
 document.querySelectorAll('.hb-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.hb-tab-btn').forEach(b => b.classList.remove('active'));
@@ -1547,9 +1401,7 @@ document.querySelectorAll('.hb-tab-btn').forEach(btn => {
     const paneId = 'hbpane-' + btn.dataset.hbtab;
     const pane = document.getElementById(paneId);
     if(pane) pane.style.display = 'block';
-    if(btn.dataset.hbtab === 'analytics') {
-      renderHbAnalyticsChart();
-    }
+    if(btn.dataset.hbtab === 'analytics') renderHbAnalyticsChart();
   });
 });
 
@@ -1558,97 +1410,92 @@ function isHeartbeatEvent(e) {
   if(e.domain === 'stndDefined') {
     const eventName = (e.eventName || '').toLowerCase();
     const data = e.raw?.stndDefinedFields?.data || {};
-    if(eventName.includes('heartbeat') || data.heartbeatInterval !== undefined || data.heartbeatFieldsVersion !== undefined) {
-      return true;
-    }
+    if(eventName.includes('heartbeat') || data.heartbeatInterval !== undefined || data.heartbeatFieldsVersion !== undefined) return true;
   }
   return false;
 }
 
 function processHeartbeatData() {
-  const hbEvents = cachedEvents.filter(isHeartbeatEvent);
-  const now = Date.now();
+  try {
+    const hbEvents = cachedEvents.filter(isHeartbeatEvent);
+    const now = Date.now();
 
-  hbEvents.forEach(e => {
-    const sourceId = e.sourceName || 'unknown-device';
-    const raw = e.raw || {};
-    const header = raw.event?.commonEventHeader || {};
-    const hbFields = raw.event?.heartbeatFields || raw.stndDefinedFields?.data || {};
-    const epoch = header.startEpochMicrosec ? header.startEpochMicrosec / 1000 : (new Date(e.receivedAt).getTime() || now);
-    const intervalVal = hbFields.heartbeatInterval || hbConfig.defaultInterval;
+    hbEvents.forEach(e => {
+      const sourceId = e.sourceName || 'unknown-device';
+      const raw = e.raw || {};
+      const header = raw.event?.commonEventHeader || {};
+      const hbFields = raw.event?.heartbeatFields || raw.stndDefinedFields?.data || {};
+      const epoch = header.startEpochMicrosec ? header.startEpochMicrosec / 1000 : (new Date(e.receivedAt).getTime() || now);
+      const intervalVal = hbFields.heartbeatInterval || hbConfig.defaultInterval;
 
-    if(!hbSourceRegistry[sourceId]) {
-      hbSourceRegistry[sourceId] = {
-        source_id: sourceId,
-        source_name: sourceId,
-        first_seen: e.receivedAt,
-        last_seen: e.receivedAt,
-        last_epoch: epoch,
-        total_heartbeats: 0,
-        expected_interval: intervalVal,
-        intervals: [],
-        min_interval: null,
-        max_interval: null,
-        average_interval: intervalVal,
-        status: 'Healthy',
-        status_history: [],
-        downtime_start: null,
-        total_downtime_ms: 0
-      };
-    }
-
-    const src = hbSourceRegistry[sourceId];
-    src.total_heartbeats += 1;
-    if(e.receivedAt < src.first_seen) src.first_seen = e.receivedAt;
-    
-    if(epoch >= src.last_epoch) {
-      const diff = (epoch - src.last_epoch) / 1000;
-      if(diff > 0 && diff < 86400) {
-        src.intervals.push(diff);
-        if(src.min_interval === null || diff < src.min_interval) src.min_interval = diff;
-        if(src.max_interval === null || diff > src.max_interval) src.max_interval = diff;
+      if(!hbSourceRegistry[sourceId]) {
+        hbSourceRegistry[sourceId] = {
+          source_id: sourceId,
+          source_name: sourceId,
+          first_seen: e.receivedAt,
+          last_seen: e.receivedAt,
+          last_epoch: epoch,
+          total_heartbeats: 0,
+          expected_interval: intervalVal,
+          intervals: [],
+          min_interval: null,
+          max_interval: null,
+          average_interval: intervalVal,
+          status: 'Healthy',
+          status_history: [],
+          downtime_start: null,
+          total_downtime_ms: 0
+        };
       }
-      src.last_epoch = epoch;
-      src.last_seen = e.receivedAt;
-    }
-  });
 
-  Object.values(hbSourceRegistry).forEach(src => {
-    if(src.intervals.length > 0) {
-      const sum = src.intervals.reduce((a, b) => a + b, 0);
-      src.average_interval = Math.round(sum / src.intervals.length);
-    }
-
-    const lastTime = new Date(src.last_seen).getTime();
-    const timeSinceLastSec = (now - lastTime) / 1000;
-    const oldStatus = src.status;
-    let newStatus = 'Healthy';
-
-    if(timeSinceLastSec > hbConfig.offlineTimeout) {
-      newStatus = 'Offline';
-    } else if(timeSinceLastSec > hbConfig.warningTimeout) {
-      newStatus = 'Delayed';
-    } else {
-      newStatus = 'Healthy';
-    }
-
-    if(newStatus !== oldStatus) {
-      src.status = newStatus;
-      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      src.status_history.push({ time: timeStr, status: newStatus, timestamp: now });
-
-      if(hbConfig.alertsEnabled) {
-        triggerHbAlert(src.source_id, newStatus, `Device source status changed to ${newStatus} (silent for ${Math.round(timeSinceLastSec)}s)`);
+      const src = hbSourceRegistry[sourceId];
+      src.total_heartbeats += 1;
+      if(e.receivedAt < src.first_seen) src.first_seen = e.receivedAt;
+      
+      if(epoch >= src.last_epoch) {
+        const diff = (epoch - src.last_epoch) / 1000;
+        if(diff > 0 && diff < 86400) {
+          src.intervals.push(diff);
+          if(src.min_interval === null || diff < src.min_interval) src.min_interval = diff;
+          if(src.max_interval === null || diff > src.max_interval) src.max_interval = diff;
+        }
+        src.last_epoch = epoch;
+        src.last_seen = e.receivedAt;
       }
-    }
-  });
+    });
+
+    Object.values(hbSourceRegistry).forEach(src => {
+      if(src.intervals.length > 0) {
+        const sum = src.intervals.reduce((a, b) => a + b, 0);
+        src.average_interval = Math.round(sum / src.intervals.length);
+      }
+
+      const lastTime = new Date(src.last_seen).getTime();
+      const timeSinceLastSec = (now - lastTime) / 1000;
+      const oldStatus = src.status;
+      let newStatus = 'Healthy';
+
+      if(timeSinceLastSec > hbConfig.offlineTimeout) newStatus = 'Offline';
+      else if(timeSinceLastSec > hbConfig.warningTimeout) newStatus = 'Delayed';
+      else newStatus = 'Healthy';
+
+      if(newStatus !== oldStatus) {
+        src.status = newStatus;
+        const timeStr = formatReadableTime(new Date());
+        src.status_history.push({ time: timeStr, status: newStatus, timestamp: now });
+        if(hbConfig.alertsEnabled) triggerHbAlert(src.source_id, newStatus, `Device source status changed to ${newStatus}`);
+      }
+    });
+  } catch(err) {
+    console.error('[ERROR] processHeartbeatData failed:', err);
+  }
 }
 
 function triggerHbAlert(sourceId, status, message) {
   const alertType = status === 'Offline' ? 'Device Offline' : (status === 'Delayed' ? 'Device Delayed' : 'Device Recovered');
   const newAlert = {
     id: 'alert_' + Date.now() + '_' + Math.floor(Math.random()*1000),
-    time: new Date().toLocaleTimeString(),
+    time: formatReadableTime(new Date()),
     source_id: sourceId,
     type: alertType,
     message: message
@@ -1662,136 +1509,152 @@ function triggerHbAlert(sourceId, status, message) {
 }
 
 function renderHeartbeatModule() {
-  const hbEvents = cachedEvents.filter(isHeartbeatEvent);
-  const now = Date.now();
-  const todayStr = new Date().toDateString();
+  try {
+    const hbEvents = cachedEvents.filter(isHeartbeatEvent);
+    const todayStr = new Date().toDateString();
 
-  const totalCount = hbEvents.length;
-  const todayCount = hbEvents.filter(e => new Date(e.receivedAt).toDateString() === todayStr).length;
-  const sourcesArr = Object.values(hbSourceRegistry);
-  const activeSources = sourcesArr.length;
-  const healthyCount = sourcesArr.filter(s => s.status === 'Healthy').length;
-  const delayedCount = sourcesArr.filter(s => s.status === 'Delayed').length;
-  const offlineCount = sourcesArr.filter(s => s.status === 'Offline').length;
+    const totalCount = hbEvents.length;
+    const todayCount = hbEvents.filter(e => new Date(e.receivedAt).toDateString() === todayStr).length;
+    const sourcesArr = Object.values(hbSourceRegistry);
+    const activeSources = sourcesArr.length;
+    const healthyCount = sourcesArr.filter(s => s.status === 'Healthy').length;
+    const delayedCount = sourcesArr.filter(s => s.status === 'Delayed').length;
+    const offlineCount = sourcesArr.filter(s => s.status === 'Offline').length;
 
-  document.getElementById('hbTotalCount').textContent = totalCount;
-  document.getElementById('hbTodayCount').textContent = todayCount;
-  document.getElementById('hbActiveSourcesCount').textContent = activeSources;
-  document.getElementById('hbHealthyCount').textContent = healthyCount;
-  document.getElementById('hbDelayedCount').textContent = delayedCount;
-  document.getElementById('hbOfflineCount').textContent = offlineCount;
-  document.getElementById('hbRateCount').textContent = `${Math.round(totalCount > 0 ? (totalCount / 5) : 0)} /min`;
-  document.getElementById('navHeartbeatBadge').textContent = totalCount;
+    document.getElementById('hbTotalCount').textContent = totalCount;
+    document.getElementById('hbTodayCount').textContent = todayCount;
+    document.getElementById('hbActiveSourcesCount').textContent = activeSources;
+    document.getElementById('hbHealthyCount').textContent = healthyCount;
+    document.getElementById('hbDelayedCount').textContent = delayedCount;
+    document.getElementById('hbOfflineCount').textContent = offlineCount;
+    document.getElementById('hbRateCount').textContent = `${Math.round(totalCount > 0 ? (totalCount / 5) : 0)} /min`;
+    document.getElementById('navHeartbeatBadge').textContent = totalCount;
+    document.getElementById('hbAlertsCountPill').textContent = hbAlerts.length;
 
-  document.getElementById('hbAlertsCountPill').textContent = hbAlerts.length;
-
-  renderHbSourcesTable();
-  renderHbEventsTable();
-  renderHbAlertsTable();
-  populateHbEventSourceFilter();
+    renderHbSourcesTable();
+    renderHbEventsTable();
+    renderHbAlertsTable();
+    populateHbEventSourceFilter();
+  } catch(err) {
+    console.error('[ERROR] renderHeartbeatModule failed:', err);
+  }
 }
 
 function renderHbSourcesTable() {
-  const tbody = document.getElementById('hbSourcesTableBody');
-  const search = (document.getElementById('hbSourceSearch').value || '').toLowerCase();
-  const statusFilter = document.getElementById('hbSourceStatusFilter').value;
-  const sortBy = document.getElementById('hbSourceSortBy').value;
+  try {
+    const tbody = document.getElementById('hbSourcesTableBody');
+    const search = (document.getElementById('hbSourceSearch').value || '').toLowerCase();
+    const statusFilter = document.getElementById('hbSourceStatusFilter').value;
+    const sortBy = document.getElementById('hbSourceSortBy').value;
 
-  let sources = Object.values(hbSourceRegistry).filter(s => {
-    if(statusFilter && s.status !== statusFilter) return false;
-    if(search && !s.source_id.toLowerCase().includes(search)) return false;
-    return true;
-  });
+    let sources = Object.values(hbSourceRegistry).filter(s => {
+      if(statusFilter && s.status !== statusFilter) return false;
+      if(search && !s.source_id.toLowerCase().includes(search)) return false;
+      return true;
+    });
 
-  sources.sort((a, b) => {
-    if(sortBy === 'last_seen_desc') return new Date(b.last_seen) - new Date(a.last_seen);
-    if(sortBy === 'last_seen_asc') return new Date(a.last_seen) - new Date(b.last_seen);
-    if(sortBy === 'status') return a.status.localeCompare(b.status);
-    if(sortBy === 'total_desc') return b.total_heartbeats - a.total_heartbeats;
-    return 0;
-  });
+    sources.sort((a, b) => {
+      if(sortBy === 'last_seen_desc') return new Date(b.last_seen) - new Date(a.last_seen);
+      if(sortBy === 'last_seen_asc') return new Date(a.last_seen) - new Date(b.last_seen);
+      if(sortBy === 'status') return a.status.localeCompare(b.status);
+      if(sortBy === 'total_desc') return b.total_heartbeats - a.total_heartbeats;
+      return 0;
+    });
 
-  if(sources.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No device sources match current filters.</td></tr>';
-    return;
+    if(sources.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No device sources match current filters.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = sources.map(s => {
+      const timeSinceSec = Math.floor((Date.now() - new Date(s.last_seen).getTime()) / 1000);
+      const statusIcon = s.status === 'Healthy' ? '🟢' : (s.status === 'Delayed' ? '🟡' : '🔴');
+      return `
+        <tr style="cursor: pointer;" onclick="openHbSourceDetails('${s.source_id}')">
+          <td><b>${s.source_id}</b></td>
+          <td><span class="hb-health-pill ${s.status.toLowerCase()}">${statusIcon} ${s.status}</span></td>
+          <td>${formatReadableTime(s.last_seen)}</td>
+          <td>${timeSinceSec}s ago</td>
+          <td>${s.expected_interval}s</td>
+          <td>${s.average_interval}s (avg)</td>
+          <td><b>${s.total_heartbeats}</b></td>
+          <td><button class="btn small primary">Device Details</button></td>
+        </tr>
+      `;
+    }).join('');
+  } catch(err) {
+    console.error('[ERROR] renderHbSourcesTable failed:', err);
   }
-
-  tbody.innerHTML = sources.map(s => {
-    const timeSinceSec = Math.floor((Date.now() - new Date(s.last_seen).getTime()) / 1000);
-    const statusIcon = s.status === 'Healthy' ? '🟢' : (s.status === 'Delayed' ? '🟡' : '🔴');
-    return `
-      <tr style="cursor: pointer;" onclick="openHbSourceDetails('${s.source_id}')">
-        <td><b>${s.source_id}</b></td>
-        <td><span class="hb-health-pill ${s.status.toLowerCase()}">${statusIcon} ${s.status}</span></td>
-        <td>${s.last_seen || '-'}</td>
-        <td>${timeSinceSec}s ago</td>
-        <td>${s.expected_interval}s</td>
-        <td>${s.average_interval}s (avg)</td>
-        <td><b>${s.total_heartbeats}</b></td>
-        <td><button class="btn small primary">Device Details</button></td>
-      </tr>
-    `;
-  }).join('');
 }
 
 ['hbSourceSearch', 'hbSourceStatusFilter', 'hbSourceSortBy'].forEach(id => {
   const el = document.getElementById(id);
-  if(el) el.addEventListener('input', renderHbSourcesTable);
-  if(el) el.addEventListener('change', renderHbSourcesTable);
+  if(el) {
+    el.addEventListener('input', renderHbSourcesTable);
+    el.addEventListener('change', renderHbSourcesTable);
+  }
 });
 
 function populateHbEventSourceFilter() {
-  const select = document.getElementById('hbEventSourceFilter');
-  if(!select) return;
-  const current = select.value;
-  const sources = [...new Set(cachedEvents.filter(isHeartbeatEvent).map(e => e.sourceName).filter(Boolean))].sort();
-  select.innerHTML = '<option value="">All Device Sources</option>' + sources.map(s => `<option value="${s}">${s}</option>`).join('');
-  select.value = sources.includes(current) ? current : '';
+  try {
+    const select = document.getElementById('hbEventSourceFilter');
+    if(!select) return;
+    const current = select.value;
+    const sources = [...new Set(cachedEvents.filter(isHeartbeatEvent).map(e => e.sourceName).filter(Boolean))].sort();
+    select.innerHTML = '<option value="">All Device Sources</option>' + sources.map(s => `<option value="${s}">${s}</option>`).join('');
+    select.value = sources.includes(current) ? current : '';
+  } catch(err) {
+    console.error('[ERROR] populateHbEventSourceFilter failed:', err);
+  }
 }
 
 function renderHbEventsTable() {
-  const tbody = document.getElementById('hbEventsTableBody');
-  const search = (document.getElementById('hbEventSearch').value || '').toLowerCase();
-  const sourceFilter = document.getElementById('hbEventSourceFilter').value;
-  const timeRange = document.getElementById('hbEventTimeRange').value;
+  try {
+    const tbody = document.getElementById('hbEventsTableBody');
+    const search = (document.getElementById('hbEventSearch').value || '').toLowerCase();
+    const sourceFilter = document.getElementById('hbEventSourceFilter').value;
+    const timeRange = document.getElementById('hbEventTimeRange').value;
 
-  let hbEvents = cachedEvents.filter(e => {
-    if(!isHeartbeatEvent(e)) return false;
-    if(sourceFilter && e.sourceName !== sourceFilter) return false;
-    const text = ((e.sourceName || '') + ' ' + (e.eventId || '')).toLowerCase();
-    if(search && !text.includes(search)) return false;
-    if(timeRange) {
-      const span = timeRange === '15m' ? 15*60000 : (timeRange === '1h' ? 60*60000 : 24*60*60000);
-      if(Date.now() - new Date(e.receivedAt).getTime() > span) return false;
+    let hbEvents = cachedEvents.filter(e => {
+      if(!isHeartbeatEvent(e)) return false;
+      if(sourceFilter && e.sourceName !== sourceFilter) return false;
+      const text = ((e.sourceName || '') + ' ' + (e.eventId || '')).toLowerCase();
+      if(search && !text.includes(search)) return false;
+      if(timeRange) {
+        const span = timeRange === '15m' ? 15*60000 : (timeRange === '1h' ? 60*60000 : 24*60*60000);
+        if(Date.now() - new Date(e.receivedAt).getTime() > span) return false;
+      }
+      return true;
+    });
+
+    if(hbEvents.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No heartbeat events match current filter.</td></tr>';
+      return;
     }
-    return true;
-  });
 
-  if(hbEvents.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No heartbeat events match current filter.</td></tr>';
-    return;
+    tbody.innerHTML = hbEvents.map(e => {
+      const srcStatus = hbSourceRegistry[e.sourceName]?.status || 'Healthy';
+      const statusIcon = srcStatus === 'Healthy' ? '🟢' : (srcStatus === 'Delayed' ? '🟡' : '🔴');
+      const domainBadge = e.domain === 'stndDefined' ? '<span class="badge stndDefined">stndDefined</span>' : '<span class="badge heartbeat">native</span>';
+      return `
+        <tr>
+          <td>${formatReadableTime(e.receivedAt)}</td>
+          <td><b>${e.sourceName || '-'}</b></td>
+          <td style="font-size: 11px; color: var(--text-muted);">
+            <span class="event-id-chip" title="${e.eventId || '-'}">${(e.eventId||'-').slice(0,20)}</span>
+            <button class="btn small" style="margin-left:8px; padding:2px 6px; font-size:11px;" onclick="(function(id, btn){ if(!id) return; navigator.clipboard.writeText(id).then(()=>{ const orig=btn.textContent; btn.textContent='copied'; setTimeout(()=>btn.textContent=orig,900); }).catch(()=>{}); })(${JSON.stringify(e.eventId||'')}, this)">copy</button>
+          </td>
+          <td>${domainBadge}</td>
+          <td><span class="hb-health-pill ${srcStatus.toLowerCase()}">${statusIcon} ${srcStatus}</span></td>
+          <td>
+            <button class="btn small primary" onclick='openHbEventModal(${JSON.stringify(e).replace(/'/g, "&#39;")})'>View</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch(err) {
+    console.error('[ERROR] renderHbEventsTable failed:', err);
   }
-
-  tbody.innerHTML = hbEvents.map(e => {
-    const srcStatus = hbSourceRegistry[e.sourceName]?.status || 'Healthy';
-    const statusIcon = srcStatus === 'Healthy' ? '🟢' : (srcStatus === 'Delayed' ? '🟡' : '🔴');
-    const domainBadge = e.domain === 'stndDefined' ? '<span class="badge stndDefined">stndDefined</span>' : '<span class="badge heartbeat">native</span>';
-    return `
-      <tr>
-        <td>${e.receivedAt || '-'}</td>
-        <td><b>${e.sourceName || '-'}</b></td>
-        <td style="font-size: 11px; color: var(--text-muted);">
-          <span class="event-id-chip" title="${e.eventId || '-'}">${(e.eventId||'-').slice(0,20)}</span>
-          <button class="btn small" style="margin-left:8px; padding:2px 6px; font-size:11px;" onclick="(function(id, btn){ if(!id) return; navigator.clipboard.writeText(id).then(()=>{ const orig=btn.textContent; btn.textContent='copied'; setTimeout(()=>btn.textContent=orig,900); }).catch(()=>{}); })(${JSON.stringify(e.eventId||'')}, this)">copy</button>
-        </td>
-        <td>${domainBadge}</td>
-        <td><span class="hb-health-pill ${srcStatus.toLowerCase()}">${statusIcon} ${srcStatus}</span></td>
-        <td>
-          <button class="btn small primary" onclick='openHbEventModal(${JSON.stringify(e).replace(/'/g, "&#39;")})'>View</button>
-        </td>
-      </tr>
-    `;
-  }).join('');
 }
 
 ['hbEventSearch', 'hbEventSourceFilter', 'hbEventTimeRange'].forEach(id => {
@@ -1805,12 +1668,10 @@ function renderHbEventsTable() {
 function renderHbAlertsTable() {
   const tbody = document.getElementById('hbAlertsTableBody');
   if(!tbody) return;
-
   if(hbAlerts.length === 0) {
     tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No alerts recorded. All device sources operating normally.</td></tr>';
     return;
   }
-
   tbody.innerHTML = hbAlerts.map(a => `
     <tr>
       <td>${a.time}</td>
@@ -1825,7 +1686,6 @@ function renderHbAnalyticsChart() {
   const ctx = document.getElementById('hbRateChart');
   if(!ctx) return;
   const hbEvents = cachedEvents.filter(isHeartbeatEvent);
-
   if(hbRateChart) hbRateChart.destroy();
 
   hbRateChart = new Chart(ctx, {
@@ -1884,8 +1744,8 @@ function openHbSourceDetails(sourceId) {
       <span class="hb-health-pill ${src.status.toLowerCase()}">${src.status}</span>
     </div>
     <div class="modal-grid" style="margin-bottom: 1rem;">
-      <div class="modal-stat"><p>First Seen</p><h4>${src.first_seen}</h4></div>
-      <div class="modal-stat"><p>Last Seen</p><h4>${src.last_seen}</h4></div>
+      <div class="modal-stat"><p>First Seen</p><h4>${formatReadableTime(src.first_seen)}</h4></div>
+      <div class="modal-stat"><p>Last Seen</p><h4>${formatReadableTime(src.last_seen)}</h4></div>
       <div class="modal-stat"><p>Total Heartbeats</p><h4>${src.total_heartbeats}</h4></div>
       <div class="modal-stat"><p>Expected Interval</p><h4>${src.expected_interval}s</h4></div>
       <div class="modal-stat"><p>Average Interval</p><h4>${src.average_interval}s</h4></div>
@@ -1905,7 +1765,7 @@ function openHbEventModal(eventItem) {
 
   body.innerHTML = `
     <div class="modal-grid" style="margin-bottom: 1rem;">
-      <div class="modal-stat"><p>Timestamp</p><h4>${eventItem.receivedAt}</h4></div>
+      <div class="modal-stat"><p>Timestamp</p><h4>${formatReadableTime(eventItem.receivedAt)}</h4></div>
       <div class="modal-stat"><p>Device Source</p><h4>${eventItem.sourceName}</h4></div>
       <div class="modal-stat"><p>Event ID</p><h4>${eventItem.eventId || '-'}</h4></div>
       <div class="modal-stat"><p>Domain / Type</p><h4>${eventItem.domain}</h4></div>
@@ -1913,7 +1773,7 @@ function openHbEventModal(eventItem) {
     <h5 style="margin: 0 0 0.5rem 0;">Raw JSON Payload</h5>
     <pre style="background: #0b0f19; color: #38edf8; padding: 12px; border-radius: 4px; max-height: 250px; overflow: auto; font-family: 'IBM Plex Mono', monospace; font-size: 11px;">${JSON.stringify(eventItem.raw || eventItem, null, 2)}</pre>
     <div class="modal-actions" style="display:flex; justify-content:flex-end; margin-top: 1rem;">
-      <button class="btn small primary" onclick="navigator.clipboard.writeText(JSON.stringify(${JSON.stringify(eventItem.raw || eventItem).replace(/'/g, "\\'")}, null, 2)); alert('JSON copied to clipboard!');">Copy JSON</button>
+      <button class="btn small primary" onclick="navigator.clipboard.writeText('${eventItem.eventId || ''}'); alert('Event ID copied to clipboard!');">Copy Event ID</button>
     </div>
   `;
   backdrop.classList.add('open');
@@ -1954,14 +1814,7 @@ document.getElementById('hbConfigSaveBtn').addEventListener('click', () => {
 });
 
 document.getElementById('hbConfigResetBtn').addEventListener('click', () => {
-  hbConfig = {
-    defaultInterval: 30,
-    warningTimeout: 45,
-    offlineTimeout: 90,
-    maxEvents: 200,
-    retentionHours: 24,
-    alertsEnabled: true
-  };
+  hbConfig = { defaultInterval: 30, warningTimeout: 45, offlineTimeout: 90, maxEvents: 200, retentionHours: 24, alertsEnabled: true };
   localStorage.setItem('vesHbConfig', JSON.stringify(hbConfig));
   document.getElementById('hbCfgDefaultInterval').value = hbConfig.defaultInterval;
   document.getElementById('hbCfgWarningTimeout').value = hbConfig.warningTimeout;
@@ -1980,124 +1833,138 @@ document.getElementById('refreshHeartbeatsBtn').addEventListener('click', () => 
     Events & Dashboard Functions
     ============================================================ */
 async function loadEvents(){
- try{
-   cachedEvents = await safeFetch('/api/events?limit=200');
- } catch(e){ return; }
- renderFeed();
- renderEvents();
- populateDeviceFilter();
- checkForCriticalToasts();
- processHeartbeatData();
- if(currentView === 'heartbeat') renderHeartbeatModule();
+  try{
+    cachedEvents = await safeFetch('/api/events?limit=200');
+    renderFeed();
+    renderEvents();
+    populateDeviceFilter();
+    checkForCriticalToasts();
+    processHeartbeatData();
+    if(currentView === 'heartbeat') renderHeartbeatModule();
+  } catch(e){
+    console.error('[ERROR] loadEvents failed:', e);
+  }
 }
 
 function renderFeed(){
- const feed=document.getElementById('liveFeed');
- const recent=[...cachedEvents].reverse().slice(0,20);
- if(recent.length===0){ feed.innerHTML='<div class="empty-state">Waiting for events...</div>'; return; }
- feed.innerHTML = recent.map(e=>`
-    <div class="feed-item">
-      <span class="badge ${e.domain}">${e.domain}</span>
-      ${e.eventName || e.domain}<br>
-      <small>${e.sourceName||'-'}</small>
-    </div>`).join('');
+  try {
+   const feed=document.getElementById('liveFeed');
+   const recent=[...cachedEvents].reverse().slice(0,20);
+   if(recent.length===0){ feed.innerHTML='<div class="empty-state">Waiting for events...</div>'; return; }
+   feed.innerHTML = recent.map(e=>`
+     <div class="feed-item">
+       <span class="badge ${e.domain}">${e.domain}</span>
+       <strong>${e.eventName || e.domain}</strong><br>
+       <small style="color: var(--text-muted); font-family: monospace;">ID: ${e.eventId || '-'}</small><br>
+       <small>${e.sourceName||'-'}</small>
+     </div>`).join('');
+  } catch(err) {
+    console.error('[ERROR] renderFeed failed:', err);
+  }
 }
 
 function populateDeviceFilter(){
- const select=document.getElementById('deviceFilter');
- const current=select.value;
- const ids=[...new Set(cachedEvents.map(e=>e.sourceName).filter(Boolean))].sort();
- select.innerHTML='<option value="">All Devices</option>' + ids.map(id=>`<option value="${id}">${id}</option>`).join('');
- select.value = ids.includes(current) ? current : '';
+  try {
+   const select=document.getElementById('deviceFilter');
+   const current=select.value;
+   const ids=[...new Set(cachedEvents.map(e=>e.sourceName).filter(Boolean))].sort();
+   select.innerHTML='<option value="">All Devices</option>' + ids.map(id=>`<option value="${id}">${id}</option>`).join('');
+   select.value = ids.includes(current) ? current : '';
+  } catch(err) {
+    console.error('[ERROR] populateDeviceFilter failed:', err);
+  }
 }
 
 document.querySelectorAll('#view-explorer thead th[data-sort]').forEach(th=>{
   th.addEventListener('click', ()=>{
     const key=th.dataset.sort;
-    if(explorerSort.key===key){ explorerSort.dir = explorerSort.dir==='asc'?'desc':'asc'; }
-    else { explorerSort = { key, dir:'asc' }; }
+    if(explorerSort.key===key) explorerSort.dir = explorerSort.dir==='asc'?'desc':'asc';
+    else explorerSort = { key, dir:'asc' };
     renderEvents();
   });
 });
 
 function renderEvents(){
- const search=(document.getElementById('searchBox').value||'').toLowerCase();
- const filter=document.getElementById('domainFilter').value;
- const deviceFilter=document.getElementById('deviceFilter').value;
+  try {
+   const search=(document.getElementById('searchBox').value||'').toLowerCase();
+   const filter=document.getElementById('domainFilter').value;
+   const deviceFilter=document.getElementById('deviceFilter').value;
 
- document.querySelectorAll('#view-explorer thead th[data-sort]').forEach(th=>{
-   th.classList.toggle('sorted', th.dataset.sort===explorerSort.key);
-   th.querySelector('.sort-arrow').textContent = th.dataset.sort===explorerSort.key ? (explorerSort.dir==='asc'?'\u2191':'\u2193') : '';
- });
+   document.querySelectorAll('#view-explorer thead th[data-sort]').forEach(th=>{
+     th.classList.toggle('sorted', th.dataset.sort===explorerSort.key);
+     th.querySelector('.sort-arrow').textContent = th.dataset.sort===explorerSort.key ? (explorerSort.dir==='asc'?'\u2191':'\u2193') : '';
+   });
 
- let rows = cachedEvents.filter(event=>{
-  if(filter && event.domain!==filter) return false;
-  if(deviceFilter && event.sourceName!==deviceFilter) return false;
-  const idParts = [];
-  if(event.eventId) idParts.push(event.eventId);
-  if(event.event_id) idParts.push(event.event_id);
-  if(event.collectorId) idParts.push(event.collectorId);
-  if(event.collector_id) idParts.push(event.collector_id);
-  if(event.commonEventHeader && event.commonEventHeader.eventId) idParts.push(event.commonEventHeader.eventId);
-  if(event.raw && event.raw.event && event.raw.event.commonEventHeader && event.raw.event.commonEventHeader.eventId) idParts.push(event.raw.event.commonEventHeader.eventId);
-  const text = (idParts.join(' ') + ' ' + (event.sourceName||'')).toLowerCase();
-  if(search && !text.includes(search)) return false;
-  return true;
- });
+   let rows = cachedEvents.filter(event=>{
+    if(filter && event.domain!==filter) return false;
+    if(deviceFilter && event.sourceName!==deviceFilter) return false;
+    const idParts = [];
+    if(event.eventId) idParts.push(event.eventId);
+    if(event.event_id) idParts.push(event.event_id);
+    if(event.collectorId) idParts.push(event.collectorId);
+    if(event.collector_id) idParts.push(event.collector_id);
+    const text = (idParts.join(' ') + ' ' + (event.sourceName||'')).toLowerCase();
+    if(search && !text.includes(search)) return false;
+    return true;
+   });
 
- rows.sort((a,b)=>{
-   let av=a[explorerSort.key]||'', bv=b[explorerSort.key]||'';
-   if(av<bv) return explorerSort.dir==='asc'?-1:1;
-   if(av>bv) return explorerSort.dir==='asc'?1:-1;
-   return 0;
- });
+   rows.sort((a,b)=>{
+     let av=a[explorerSort.key]||'', bv=b[explorerSort.key]||'';
+     if(av<bv) return explorerSort.dir==='asc'?-1:1;
+     if(av>bv) return explorerSort.dir==='asc'?1:-1;
+     return 0;
+   });
 
- const table=document.getElementById('eventsTable');
- if(rows.length===0){
-   table.innerHTML='<tr><td colspan="5" class="empty-state">No matching events</td></tr>';
- } else {
-   table.innerHTML = rows.map(event=>`
-      <tr data-id="${event.collectorId}">
-        <td>${event.receivedAt||'-'}</td>
-        <td><span class="badge ${event.domain}">${event.domain}</span>${explorerDomainSubTag(event)}</td>
-        <td style="font-size:11px; color:var(--text-muted);">
-          <span title="${event.eventId || '-'}">${(event.eventId||'-').slice(0,20)}</span>
-          <button class="btn small" style="margin-left:8px; padding:2px 6px; font-size:11px;" onclick="(function(id, btn){ if(!id) return; navigator.clipboard.writeText(id).then(()=>{ const orig=btn.textContent; btn.textContent='copied'; setTimeout(()=>btn.textContent=orig,900); }).catch(()=>{}); })(${JSON.stringify(event.eventId||'')}, this)">copy</button>
-        </td>
-        <td>${event.sourceName||'-'}</td>
-        <td>${event.priority||'-'}</td>
-      </tr>`).join('');
-    [...table.children].forEach((row,i)=>{
-      row.addEventListener('click', ()=>showEvent(rows[i]));
-      if(row.dataset.id === selectedEventId){
-        row.style.background = 'rgba(108,195,255,0.12)';
-      }
-    });
- }
-
- document.getElementById('explorerCount').textContent = `${rows.length} events shown`;
+   const table=document.getElementById('eventsTable');
+   if(rows.length===0){
+     table.innerHTML='<tr><td colspan="5" class="empty-state">No matching events</td></tr>';
+   } else {
+     table.innerHTML = rows.map(event=>`
+       <tr data-id="${event.collectorId}">
+         <td>${formatReadableTime(event.receivedAt)}</td>
+         <td><span class="badge ${event.domain}">${event.domain}</span>${explorerDomainSubTag(event)}</td>
+         <td style="font-size:11px; color:var(--text-muted);">
+           <span title="${event.eventId || '-'}">${(event.eventId||'-').slice(0,20)}</span>
+           <button class="btn small" style="margin-left:8px; padding:2px 6px; font-size:11px;" onclick="(function(id, btn){ if(!id) return; navigator.clipboard.writeText(id).then(()=>{ const orig=btn.textContent; btn.textContent='copied'; setTimeout(()=>btn.textContent=orig,900); }).catch(()=>{}); })(${JSON.stringify(event.eventId||'')}, this)">copy</button>
+         </td>
+         <td>${event.sourceName||'-'}</td>
+         <td>${event.priority||'-'}</td>
+       </tr>`).join('');
+     [...table.children].forEach((row,i)=>{
+       row.addEventListener('click', ()=>showEvent(rows[i]));
+       if(row.dataset.id === selectedEventId) row.style.background = 'rgba(108,195,255,0.12)';
+     });
+   }
+   document.getElementById('explorerCount').textContent = `${rows.length} events shown`;
+  } catch(err) {
+    console.error('[ERROR] renderEvents failed:', err);
+  }
 }
 
 function showEvent(event){
- document.getElementById('eventDetails').textContent = JSON.stringify(event.raw,null,2);
- selectedEventId = event.collectorId;
- document.querySelectorAll('#eventsTable tr[data-id]').forEach(row=>{
-   row.style.background = (row.dataset.id === selectedEventId) ? 'rgba(108,195,255,0.12)' : '';
- });
+  document.getElementById('eventDetails').textContent = JSON.stringify(event.raw,null,2);
+  selectedEventId = event.collectorId;
+  document.querySelectorAll('#eventsTable tr[data-id]').forEach(row=>{
+    row.style.background = (row.dataset.id === selectedEventId) ? 'rgba(108,195,255,0.12)' : '';
+  });
 }
 
 function exportCsv(){
- const rows = cachedEvents;
- const header = ['receivedAt','domain','eventId','eventName','sourceName','priority'];
- const csv = [header.join(',')].concat(
-   rows.map(r=>header.map(h=>`"${(r[h]||'').toString().replace(/"/g,'""')}"`).join(','))
- ).join('\n');
- const blob = new Blob([csv], {type:'text/csv'});
- const url = URL.createObjectURL(blob);
- const a = document.createElement('a');
- a.href = url; a.download = `ves-events-${Date.now()}.csv`;
- a.click();
- URL.revokeObjectURL(url);
+  try {
+   const rows = cachedEvents;
+   const header = ['receivedAt','domain','eventId','eventName','sourceName','priority'];
+   const csv = [header.join(',')].concat(
+     rows.map(r=>header.map(h=>`"${(r[h]||'').toString().replace(/"/g,'""')}"`).join(','))
+   ).join('\n');
+   const blob = new Blob([csv], {type:'text/csv'});
+   const url = URL.createObjectURL(blob);
+   const a = document.createElement('a');
+   a.href = url; a.download = `ves-events-${Date.now()}.csv`;
+   a.click();
+   URL.revokeObjectURL(url);
+  } catch(err) {
+    console.error('[ERROR] exportCsv failed:', err);
+  }
 }
 document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
 document.getElementById('searchBox').addEventListener('input',renderEvents);
@@ -2105,12 +1972,17 @@ document.getElementById('domainFilter').addEventListener('change',renderEvents);
 document.getElementById('deviceFilter').addEventListener('change',renderEvents);
 
 async function loadDevices(){
- try{ cachedDevices = await safeFetch('/api/devices'); } catch(e){ return; }
- renderDevices();
- updateNavBadges();
+  try{
+    cachedDevices = await safeFetch('/api/devices');
+    renderDevices();
+    updateNavBadges();
+  } catch(e){
+    console.error('[ERROR] loadDevices failed:', e);
+  }
 }
 
 function deviceCardHtml(d){
+  try {
     const state=liveState(d.lastSeen);
     const metaLine = (d.vendor || d.model) ? `${d.vendor||'Unknown vendor'} &middot; ${d.model||'Unknown model'}` : 'Vendor / model unknown';
     return `
@@ -2129,39 +2001,47 @@ function deviceCardHtml(d){
       </div>
       <div class="device-lastseen">last seen ${timeAgo(d.lastSeen)}</div>
     </div>`;
+  } catch(err) {
+    console.error('[ERROR] deviceCardHtml failed:', err);
+    return '';
+  }
 }
 
 function attachDeviceClicks(container){
- container.querySelectorAll('.device-card').forEach(card=>{
-   card.addEventListener('click', ()=>openDeviceModal(card.dataset.id));
- });
+  container.querySelectorAll('.device-card').forEach(card=>{
+    card.addEventListener('click', ()=>openDeviceModal(card.dataset.id));
+  });
 }
 
 function renderDevices(){
- const sorted=[...cachedDevices].sort((a,b)=> new Date(b.lastSeen||0) - new Date(a.lastSeen||0));
- const search=(document.getElementById('deviceSearch').value||'').toLowerCase();
- const statusFilter=document.getElementById('deviceStatusFilter').value;
- const regFilter=document.getElementById('deviceRegFilter').value;
+  try {
+   const sorted=[...cachedDevices].sort((a,b)=> new Date(b.lastSeen||0) - new Date(a.lastSeen||0));
+   const search=(document.getElementById('deviceSearch').value||'').toLowerCase();
+   const statusFilter=document.getElementById('deviceStatusFilter').value;
+   const regFilter=document.getElementById('deviceRegFilter').value;
 
- let filtered = sorted.filter(d=>{
-   const text=(d.deviceId+' '+(d.vendor||'')+' '+(d.model||'')).toLowerCase();
-   if(search && !text.includes(search)) return false;
-   if(statusFilter && liveState(d.lastSeen).cls!==statusFilter) return false;
-   if(regFilter==='yes' && !d.registered) return false;
-   if(regFilter==='no' && d.registered) return false;
-   return true;
- });
+   let filtered = sorted.filter(d=>{
+     const text=(d.deviceId+' '+(d.vendor||'')+' '+(d.model||'')).toLowerCase();
+     if(search && !text.includes(search)) return false;
+     if(statusFilter && liveState(d.lastSeen).cls!==statusFilter) return false;
+     if(regFilter==='yes' && !d.registered) return false;
+     if(regFilter==='no' && d.registered) return false;
+     return true;
+   });
 
- const devicesGrid=document.getElementById('devicesGrid');
- const devicesCountPill=document.getElementById('devicesCountPill');
- if(devicesCountPill) devicesCountPill.textContent = `${cachedDevices.length} connected`;
- if(!devicesGrid) return;
- if(filtered.length===0){
-   devicesGrid.innerHTML='<div class="empty-state">No devices match the current filters.</div>';
- } else {
-   devicesGrid.innerHTML = filtered.map(deviceCardHtml).join('');
-   attachDeviceClicks(devicesGrid);
- }
+   const devicesGrid=document.getElementById('devicesGrid');
+   const devicesCountPill=document.getElementById('devicesCountPill');
+   if(devicesCountPill) devicesCountPill.textContent = `${cachedDevices.length} connected`;
+   if(!devicesGrid) return;
+   if(filtered.length===0){
+     devicesGrid.innerHTML='<div class="empty-state">No devices match the current filters.</div>';
+   } else {
+     devicesGrid.innerHTML = filtered.map(deviceCardHtml).join('');
+     attachDeviceClicks(devicesGrid);
+   }
+  } catch(err) {
+    console.error('[ERROR] renderDevices failed:', err);
+  }
 }
 
 ['deviceSearch','deviceStatusFilter','deviceRegFilter'].forEach(id=>{
@@ -2170,343 +2050,208 @@ function renderDevices(){
 });
 
 async function openDeviceModal(deviceId){
- const backdrop=document.getElementById('deviceModalBackdrop');
- const body=document.getElementById('modalBody');
- document.getElementById('modalDeviceId').textContent=deviceId;
- body.innerHTML='<div class="empty-state">Loading device...</div>';
- backdrop.classList.add('open');
+  const backdrop=document.getElementById('deviceModalBackdrop');
+  const body=document.getElementById('modalBody');
+  document.getElementById('modalDeviceId').textContent=deviceId;
+  body.innerHTML='<div class="empty-state">Loading device...</div>';
+  backdrop.classList.add('open');
 
- let device, events;
- try{
-   [device, events] = await Promise.all([
-     safeFetch(`/api/device/${encodeURIComponent(deviceId)}`),
-     safeFetch(`/api/device/${encodeURIComponent(deviceId)}/events`)
-   ]);
- } catch(e){
-   body.innerHTML='<div class="empty-state">Could not load device.</div>';
-   return;
- }
+  try{
+    let [device, events] = await Promise.all([
+      safeFetch(`/api/device/${encodeURIComponent(deviceId)}`),
+      safeFetch(`/api/device/${encodeURIComponent(deviceId)}/events`)
+    ]);
+    const state=liveState(device.lastSeen);
 
- const state=liveState(device.lastSeen);
+    body.innerHTML=`
+     <div class="modal-grid">
+       <div class="modal-stat"><p>Status</p><h4>${state.label}</h4></div>
+       <div class="modal-stat"><p>Registered</p><h4>${device.registered ? 'Yes':'No'}</h4></div>
+       <div class="modal-stat"><p>Vendor</p><h4>${device.vendor||'&mdash;'}</h4></div>
+       <div class="modal-stat"><p>Model</p><h4>${device.model||'&mdash;'}</h4></div>
+       <div class="modal-stat"><p>Total Events</p><h4>${device.eventCount}</h4></div>
+       <div class="modal-stat"><p>Last Seen</p><h4>${timeAgo(device.lastSeen)}</h4></div>
+       <div class="modal-stat"><p>Faults</p><h4>${(device.faults||[]).length}</h4></div>
+       <div class="modal-stat"><p>Thresholds</p><h4>${(device.thresholds||[]).length}</h4></div>
+     </div>
+     <h5>Recent Events</h5>
+     <div id="modalEvents"></div>
+    `;
 
- body.innerHTML=`
-  <div class="modal-grid">
-    <div class="modal-stat"><p>Status</p><h4>${state.label}</h4></div>
-    <div class="modal-stat"><p>Registered</p><h4>${device.registered ? 'Yes':'No'}</h4></div>
-    <div class="modal-stat"><p>Vendor</p><h4>${device.vendor||'&mdash;'}</h4></div>
-    <div class="modal-stat"><p>Model</p><h4>${device.model||'&mdash;'}</h4></div>
-    <div class="modal-stat"><p>Total Events</p><h4>${device.eventCount}</h4></div>
-    <div class="modal-stat"><p>Last Seen</p><h4>${timeAgo(device.lastSeen)}</h4></div>
-    <div class="modal-stat"><p>Faults</p><h4>${(device.faults||[]).length}</h4></div>
-    <div class="modal-stat"><p>Thresholds</p><h4>${(device.thresholds||[]).length}</h4></div>
-  </div>
-  <h5>Recent Events</h5>
-  <div id="modalEvents"></div>
- `;
-
- const modalEvents=document.getElementById('modalEvents');
- const recent=[...events].reverse().slice(0,25);
- if(recent.length===0){
-   modalEvents.innerHTML='<div class="empty-state">No events recorded for this device.</div>';
- } else {
-   modalEvents.innerHTML = recent.map(e=>{
-    const header=e.commonEventHeader||{};
-    return `<div class="modal-event-row">
-       <span class="badge ${header.domain}">${header.domain}</span>
-       <span>${header.eventName||'-'}</span>
-       <time>${header.startEpochMicrosec ? new Date(header.startEpochMicrosec/1000).toLocaleTimeString() : ''}</time>
-     </div>`;
-   }).join('');
- }
+    const modalEvents=document.getElementById('modalEvents');
+    const recent=[...events].reverse().slice(0,25);
+    if(recent.length===0){
+      modalEvents.innerHTML='<div class="empty-state">No events recorded for this device.</div>';
+    } else {
+      modalEvents.innerHTML = recent.map(e=>{
+         const header=e.commonEventHeader||{};
+         return `<div class="modal-event-row">
+          <span class="badge ${header.domain}">${header.domain}</span>
+          <span>${header.eventName||'-'}</span>
+          <time>${header.startEpochMicrosec ? formatReadableTime(header.startEpochMicrosec/1000) : ''}</time>
+         </div>`;
+      }).join('');
+    }
+  } catch(e){
+    body.innerHTML='<div class="empty-state">Could not load device.</div>';
+  }
 }
 
 document.getElementById('modalClose').addEventListener('click', ()=>{
- document.getElementById('deviceModalBackdrop').classList.remove('open');
+  document.getElementById('deviceModalBackdrop').classList.remove('open');
 });
 document.getElementById('deviceModalBackdrop').addEventListener('click', (e)=>{
- if(e.target.id==='deviceModalBackdrop') e.target.classList.remove('open');
-});
-
-/* ============================================================
-    PNF Registration Loading & Rendering
-    ============================================================ */
-async function loadPNFs() {
-  try {
-    const response = await safeFetch('/api/pnf');
-    cachedPNFs = response || [];
-    populatePnfVendorFilter();
-    renderPNFs();
-    updateNavBadges();
-  } catch(e) {
-    return;
-  }
-}
-
-function populatePnfVendorFilter() {
-  const select = document.getElementById('pnfVendorFilter');
-  const current = select.value;
-  const vendors = [...new Set(cachedPNFs.map(p => p.vendorName).filter(Boolean))].sort();
-  select.innerHTML = '<option value="">All Vendors</option>' + vendors.map(v => `<option value="${v}">${v}</option>`).join('');
-  select.value = vendors.includes(current) ? current : '';
-}
-
-function renderPNFs() {
-  const search = (document.getElementById('pnfSearch').value || '').toLowerCase();
-  const vendorFilter = document.getElementById('pnfVendorFilter').value;
-
-  let rows = cachedPNFs.filter(p => {
-    const vendor = p.vendorName || '';
-    const name = p.unitType || '';
-    const ip = p.oamV4IpAddress || '';
-
-    if(vendorFilter && vendor !== vendorFilter) return false;
-
-    const text = (vendor + " " + name + " " + ip + " " + (p.modelNumber || '')).toLowerCase();
-    if(search && !text.includes(search)) return false;
-
-    return true;
-  });
-
-  document.getElementById('pnfCountPill').textContent = `${cachedPNFs.length} registered`;
-  const table = document.getElementById('pnfsTable');
-
-  if(rows.length === 0){
-    table.innerHTML = `
-    <tr>
-      <td colspan="9" class="empty-state">
-        No PNF registration records found
-      </td>
-    </tr>`;
-    return;
-  }
-
-  table.innerHTML = rows.map(p => {
-    return `
-    <tr>
-      <td>${p.receivedTime || '-'}</td>
-      <td><b>${p.unitType || '-'}</b></td>
-      <td>${p.vendorName || '-'}</td>
-      <td>${p.modelNumber || '-'}</td>
-      <td>${p.oamV4IpAddress || '-'}</td>
-      <td><span class="badge heartbeat">${p.protocol || '-'}</span></td>
-      <td>${p.username || '-'}</td>
-      <td>${pnfForwardStatusHtml(p)}</td>
-      <td>
-        ${p.forwarded === false
-          ? `<button class="btn small primary pnf-retry-btn" data-oam="${p.oamV4IpAddress}">Retry</button>`
-          : ''}
-      </td>
-    </tr>`;
-  }).join('');
-
-  table.querySelectorAll('.pnf-retry-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      btn.textContent = 'Retrying...';
-      try {
-        await fetch('/api/pnf/forward', { method: 'POST' });
-      } catch(e) {}
-      await loadPNFs();
-    });
-  });
-}
-
-function pnfForwardStatusHtml(p){
-  if(p.forwarded === true){
-    return `<span class="badge good" title="${p.forwardedAt ? 'Forwarded at '+p.forwardedAt : ''}">forwarded</span>`;
-  }
-  if(p.forwarded === false){
-    return `<span class="badge bad" title="${p.forwardError || 'Unknown error'}">failed</span>`;
-  }
-  return `<span class="badge">pending</span>`;
-}
-
-document.getElementById('pnfSearch').addEventListener('input', renderPNFs);
-document.getElementById('pnfVendorFilter').addEventListener('change', renderPNFs);
-
-document.getElementById('configurePnfForwardBtn').addEventListener('click', async () => {
-  let cfg = {};
-  try { cfg = await safeFetch('/api/pnf/config'); } catch(e) {}
-  document.getElementById('pnfForwardHost').value = cfg.host || '';
-  document.getElementById('pnfForwardPort').value = cfg.port || '';
-  document.getElementById('pnfForwardUsername').value = cfg.username || '';
-  document.getElementById('pnfForwardKeyFilename').value = cfg.key_filename || '';
-  document.getElementById('pnfForwardKeyPassphrase').value = '';
-  document.getElementById('pnfModalBackdrop').classList.add('open');
-});
-
-document.getElementById('pnfModalClose').addEventListener('click', () => {
-  document.getElementById('pnfModalBackdrop').classList.remove('open');
-});
-document.getElementById('pnfModalBackdrop').addEventListener('click', (e) => {
-  if (e.target.id === 'pnfModalBackdrop') e.target.classList.remove('open');
-});
-
-document.getElementById('savePnfConfigBtn').addEventListener('click', async () => {
-  const host = document.getElementById('pnfForwardHost').value;
-  const port = document.getElementById('pnfForwardPort').value;
-  const username = document.getElementById('pnfForwardUsername').value;
-  const key_filename = document.getElementById('pnfForwardKeyFilename').value;
-  const key_passphrase = document.getElementById('pnfForwardKeyPassphrase').value;
-
-  try {
-    const response = await fetch('/api/pnf/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, username, key_filename, key_passphrase })
-    });
-    if (response.ok) {
-      document.getElementById('pnfModalBackdrop').classList.remove('open');
-      try { await fetch('/api/pnf/forward', { method: 'POST' }); } catch(e) {}
-      await loadPNFs();
-    }
-  } catch(e) {}
+  if(e.target.id==='deviceModalBackdrop') e.target.classList.remove('open');
 });
 
 /* ============================================================
     Files
     ============================================================ */
 async function loadFiles(){
- let res;
- try{ res = await safeFetch('/eventListener/v7?limit=200'); } catch(e){ return; }
- cachedFiles = res.entries || res || [];
- populateFileFormatFilter();
- renderFiles();
- updateNavBadges();
+  try{
+    let res = await safeFetch('/eventListener/v7?limit=200');
+    cachedFiles = res.entries || res || [];
+    populateFileFormatFilter();
+    renderFiles();
+    updateNavBadges();
+  } catch(e){
+    console.error('[ERROR] loadFiles failed:', e);
+  }
 }
 
 function populateFileFormatFilter(){
- const select=document.getElementById('fileFormatFilter');
- const current=select.value;
- const formats=[...new Set(cachedFiles.map(f=>f.fileFormat).filter(Boolean))].sort();
- select.innerHTML='<option value="">All Formats</option>' + formats.map(f=>`<option value="${f}">${f}</option>`).join('');
- select.value = formats.includes(current) ? current : '';
+  try {
+   const select=document.getElementById('fileFormatFilter');
+   const current=select.value;
+   const formats=[...new Set(cachedFiles.map(f=>f.fileFormat).filter(Boolean))].sort();
+   select.innerHTML='<option value="">All Formats</option>' + formats.map(f=>`<option value="${f}">${f}</option>`).join('');
+   select.value = formats.includes(current) ? current : '';
+  } catch(err) {
+    console.error('[ERROR] populateFileFormatFilter failed:', err);
+  }
 }
 
 function formatBytes(bytes){
- if(bytes===undefined || bytes===null) return '-';
- if(bytes < 1024) return bytes + ' B';
- if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
- return (bytes/(1024*1024)).toFixed(1) + ' MB';
+  if(bytes===undefined || bytes===null) return '-';
+  if(bytes < 1024) return bytes + ' B';
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
 }
 
 function renderFiles(){
- const search=(document.getElementById('fileSearch').value||'').toLowerCase();
- const formatFilter=document.getElementById('fileFormatFilter').value;
+  try {
+   const search=(document.getElementById('fileSearch').value||'').toLowerCase();
+   const formatFilter=document.getElementById('fileFormatFilter').value;
+   document.getElementById('filesCountPill').textContent = `${cachedFiles.length} files`;
 
- document.getElementById('filesCountPill').textContent = `${cachedFiles.length} files`;
+   let rows = cachedFiles.filter(f=>{
+     if(formatFilter && f.fileFormat!==formatFilter) return false;
+     const text=((f.sourceName||'')+' '+(f.fileLocation||'')+' '+(f.fileFormat||'')+' '+(f.fileId||'')).toLowerCase();
+     if(search && !text.includes(search)) return false;
+     return true;
+   });
 
- let rows = cachedFiles.filter(f=>{
-    if(formatFilter && f.fileFormat!==formatFilter) return false;
-    const text=((f.sourceName||'')+' '+(f.fileLocation||'')+' '+(f.fileFormat||'')+' '+(f.fileId||'')).toLowerCase();
-    if(search && !text.includes(search)) return false;
-    return true;
- });
+   rows.sort((a,b)=> new Date(b.receivedAt||0) - new Date(a.receivedAt||0));
+   const table=document.getElementById('filesTable');
 
- rows.sort((a,b)=> new Date(b.receivedAt||0) - new Date(a.receivedAt||0));
+   if(rows.length===0){
+     table.innerHTML='<tr><td colspan="9" class="empty-state">No file references yet. Waiting for fileReady events...</td></tr>';
+   } else {
+     table.innerHTML = rows.map(f=>`
+       <tr>
+         <td><span class="file-id-chip" data-copy-id="${f.fileId}" title="Click to copy full ID: ${f.fileId}">${(f.fileId||'').slice(0,8)}</span></td>
+         <td>${formatReadableTime(f.receivedAt)}</td>
+         <td>${f.sourceName||'-'}</td>
+         <td><span class="badge stndDefined">${f.fileFormat||'-'}</span></td>
+         <td>${f.fileDataType||'-'}</td>
+         <td>${formatBytes(f.fileSize)}</td>
+         <td>${formatReadableTime(f.fileReadyTime)}</td>
+         <td>${formatReadableTime(f.fileExpirationTime)}</td>
+         <td><button class="btn small primary" data-file-id="${f.fileId}">Preview</button></td>
+       </tr>`).join('');
 
- const table=document.getElementById('filesTable');
- if(rows.length===0){
-    table.innerHTML='<tr><td colspan="9" class="empty-state">No file references yet. Waiting for fileReady events...</td></tr>';
- } else {
-    table.innerHTML = rows.map(f=>`
-      <tr>
-        <td><span class="file-id-chip" data-copy-id="${f.fileId}" title="Click to copy full ID: ${f.fileId}">${(f.fileId||'').slice(0,8)}</span></td>
-        <td>${f.receivedAt ? new Date(f.receivedAt).toLocaleTimeString() : '-'}</td>
-        <td>${f.sourceName||'-'}</td>
-        <td><span class="badge stndDefined">${f.fileFormat||'-'}</span></td>
-        <td>${f.fileDataType||'-'}</td>
-        <td>${formatBytes(f.fileSize)}</td>
-        <td>${f.fileReadyTime||'-'}</td>
-        <td>${f.fileExpirationTime||'-'}</td>
-        <td><button class="btn small primary" data-file-id="${f.fileId}">Preview</button></td>
-      </tr>`).join('');
+     table.querySelectorAll('.file-id-chip').forEach(chip=>{
+       chip.addEventListener('click', ()=>{
+         const id = chip.dataset.copyId;
+         if(navigator.clipboard && navigator.clipboard.writeText){
+           navigator.clipboard.writeText(id).then(()=>{
+             const original = chip.textContent;
+             chip.textContent = 'copied!';
+             setTimeout(()=>{ chip.textContent = original; }, 900);
+           }).catch(()=>{});
+         }
+       });
+     });
 
-    table.querySelectorAll('.file-id-chip').forEach(chip=>{
-      chip.addEventListener('click', ()=>{
-        const id = chip.dataset.copyId;
-        if(navigator.clipboard && navigator.clipboard.writeText){
-          navigator.clipboard.writeText(id).then(()=>{
-            const original = chip.textContent;
-            chip.textContent = 'copied!';
-            setTimeout(()=>{ chip.textContent = original; }, 900);
-          }).catch(()=>{});
-        }
-      });
-    });
-
-    table.querySelectorAll('button[data-file-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        openFilePreview(btn.dataset.fileId);
-      });
-    });
- }
-
- document.getElementById('filesCount').textContent = `${rows.length} files shown`;
+     table.querySelectorAll('button[data-file-id]').forEach(btn => {
+       btn.addEventListener('click', () => openFilePreview(btn.dataset.fileId));
+     });
+   }
+   document.getElementById('filesCount').textContent = `${rows.length} files shown`;
+  } catch(err) {
+    console.error('[ERROR] renderFiles failed:', err);
+  }
 }
 
 document.getElementById('fileSearch').addEventListener('input', renderFiles);
 document.getElementById('fileFormatFilter').addEventListener('change', renderFiles);
 
 async function openFilePreview(fileId){
- const backdrop=document.getElementById('fileModalBackdrop');
- const body=document.getElementById('fileModalBody');
- document.getElementById('fileModalName').textContent = 'Loading...';
- body.innerHTML='<div class="empty-state">Fetching file...</div>';
- backdrop.classList.add('open');
+  const backdrop=document.getElementById('fileModalBackdrop');
+  const body=document.getElementById('fileModalBody');
+  document.getElementById('fileModalName').textContent = 'Loading...';
+  body.innerHTML='<div class="empty-state">Fetching file...</div>';
+  backdrop.classList.add('open');
 
- let result;
- try{
-    result = await safeFetch(`/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=preview`);
- } catch(e){
-    body.innerHTML='<div class="empty-state">Could not reach the collector.</div>';
-    return;
- }
+  try{
+    let result = await safeFetch(`/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=preview`);
+    const meta = result.metadata || {};
+    document.getElementById('fileModalName').textContent = result.filename || meta.sourceName || 'File';
 
- const meta = result.metadata || {};
- document.getElementById('fileModalName').textContent = result.filename || meta.sourceName || 'File';
+    const metaGrid = `
+     <div class="modal-grid">
+       <div class="modal-stat"><p>Source</p><h4>${meta.sourceName||'&mdash;'}</h4></div>
+       <div class="modal-stat"><p>Format</p><h4>${meta.fileFormat||'&mdash;'}</h4></div>
+       <div class="modal-stat"><p>Data Type</p><h4>${meta.fileDataType||'&mdash;'}</h4></div>
+       <div class="modal-stat"><p>Size</p><h4>${formatBytes(meta.fileSize)}</h4></div>
+       <div class="modal-stat"><p>Ready Time</p><h4>${formatReadableTime(meta.fileReadyTime)}</h4></div>
+       <div class="modal-stat"><p>Expires</p><h4>${formatReadableTime(meta.fileExpirationTime)}</h4></div>
+     </div>`;
 
- const metaGrid = `
-  <div class="modal-grid">
-    <div class="modal-stat"><p>Source</p><h4>${meta.sourceName||'&mdash;'}</h4></div>
-    <div class="modal-stat"><p>Format</p><h4>${meta.fileFormat||'&mdash;'}</h4></div>
-    <div class="modal-stat"><p>Data Type</p><h4>${meta.fileDataType||'&mdash;'}</h4></div>
-    <div class="modal-stat"><p>Size</p><h4>${formatBytes(meta.fileSize)}</h4></div>
-    <div class="modal-stat"><p>Ready Time</p><h4>${meta.fileReadyTime||'&mdash;'}</h4></div>
-    <div class="modal-stat"><p>Expires</p><h4>${meta.fileExpirationTime||'&mdash;'}</h4></div>
-  </div>`;
+    if(!result.fetched){
+      body.innerHTML = metaGrid + `
+      <h5>Content</h5>
+      <div class="empty-state">Not fetched: ${result.reason||'unknown reason'}</div>
+      <div class="modal-actions">
+        <a class="btn small" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Try Download</a>
+      </div>`;
+      return;
+    }
 
- if(!result.fetched){
+    const contentBlock = result.textContent !== undefined && result.textContent !== null
+      ? `<pre>${result.textContent.replace(/</g,'&lt;')}</pre>`
+      : `<div class="empty-state">${result.note || 'Binary content.'}</div>`;
+
     body.innerHTML = metaGrid + `
-    <h5>Content</h5>
-    <div class="empty-state">Not fetched: ${result.reason||'unknown reason'}</div>
-    <div class="modal-actions">
-      <a class="btn small" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Try Download</a>
-    </div>`;
-    return;
- }
-
- const contentBlock = result.textContent !== undefined && result.textContent !== null
-    ? `<pre>${result.textContent.replace(/</g,'&lt;')}</pre>`
-    : `<div class="empty-state">${result.note || 'Binary content \u2014 use Download to retrieve raw bytes.'}</div>`;
-
- body.innerHTML = metaGrid + `
-    <h5>Content <span class="count-pill">${result.contentType||''} &middot; ${formatBytes(result.sizeBytes)}</span></h5>
-    ${contentBlock}
-    <div class="modal-actions">
-      <a class="btn small primary" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Download</a>
-    </div>`;
+      <h5>Content <span class="count-pill">${result.contentType||''} &middot; ${formatBytes(result.sizeBytes)}</span></h5>
+      ${contentBlock}
+      <div class="modal-actions">
+        <a class="btn small primary" href="/eventListener/v7?file_id=${encodeURIComponent(fileId)}&action=download" target="_blank">Download</a>
+      </div>`;
+  } catch(e){
+    body.innerHTML='<div class="empty-state">Could not reach collector.</div>';
+  }
 }
 
 document.getElementById('fileModalClose').addEventListener('click', ()=>{
- document.getElementById('fileModalBackdrop').classList.remove('open');
+  document.getElementById('fileModalBackdrop').classList.remove('open');
 });
 document.getElementById('fileModalBackdrop').addEventListener('click', (e)=>{
- if(e.target.id==='fileModalBackdrop') e.target.classList.remove('open');
+  if(e.target.id==='fileModalBackdrop') e.target.classList.remove('open');
 });
 
 /* ============================================================
-    STND Defined Events
+    STND Defined Events & Alarm Correlation
     ============================================================ */
 const STND_TYPE_LABELS = {
   notifyNewAlarm: 'New Alarm',
@@ -2519,12 +2264,10 @@ const STND_TYPE_LABELS = {
 function resolveStndType(e){
   const eventName = (e.eventName || '').toLowerCase();
   const data = e.raw?.stndDefinedFields?.data || {};
-
   if(eventName.includes('cleared')) return 'notifyClearedAlarm';
-  if(Array.isArray(data.fileInfoList) || eventName.includes('file-ready') || eventName.includes('fileready')) return 'notifyFileReady';
+  if(Array.isArray(data.fileInfoList) || eventName.includes('file-ready')) return 'notifyFileReady';
   if(eventName.includes('notifypnfregistration')) return 'notifyPNFRegistration';
-  if(eventName.includes('thresholdcrossingalert')) return 'notifyNewAlarm';
-  if(data.probableCause !== undefined || data.perceivedSeverity !== undefined) return 'notifyNewAlarm';
+  if(eventName.includes('thresholdcrossingalert') || data.probableCause !== undefined) return 'notifyNewAlarm';
   return 'unknown';
 }
 
@@ -2539,9 +2282,6 @@ function explorerDomainSubTag(event){
   return ` <span class="count-pill" style="font-size:10px; padding:2px 6px; margin-left:4px; vertical-align:middle;">${label}</span>`;
 }
 
-/* ============================================================
-    Alarm Correlation & Full Payload Modal Inspection
-    ============================================================ */
 function normalizeStndSeverity(rawSeverity, type){
   const sev = (rawSeverity || '').toString().toUpperCase();
   if(type === 'notifyClearedAlarm') return 'CLEARED';
@@ -2549,60 +2289,60 @@ function normalizeStndSeverity(rawSeverity, type){
   if(sev === 'MAJOR') return 'MAJOR';
   if(sev === 'MINOR' || sev === 'WARNING') return 'WARNING';
   if(sev === 'CLEARED' || sev === 'NORMAL') return 'CLEARED';
-  if(sev === 'INDETERMINATE' || sev === '') return 'WARNING';
   return 'WARNING';
 }
 
 function computeAlarmGroups(){
- const groups = {};
+  try {
+   const groups = {};
+   cachedEvents.forEach(e=>{
+     const raw = e.raw || {};
+     let key=null, severity=null, condition=null, domain=e.domain, extra=null;
 
- cachedEvents.forEach(e=>{
-    const raw = e.raw || {};
-    let key=null, severity=null, condition=null, domain=e.domain, extra=null;
+     if(e.domain==='fault'){
+       const ff = raw.faultFields || {};
+       condition = ff.alarmCondition || 'Unknown Condition';
+       severity = (ff.eventSeverity||'WARNING').toUpperCase();
+       key = `${e.sourceName}::fault::${condition}`;
+       extra = { specificProblem: ff.specificProblem, eventCategory: ff.eventCategory, vfStatus: ff.vfStatus };
+     } else if(e.domain==='stndDefined'){
+       const type = resolveStndType(e);
+       if(!isStndAlarmType(type)) return;
+       const data = raw.stndDefinedFields?.data || {};
+       condition = data.probableCause || raw.stndDefinedFields?.notificationFields?.notificationType || e.eventName || 'Unknown Condition';
+       severity = normalizeStndSeverity(data.perceivedSeverity, type);
+       key = `${e.sourceName}::stnd::${condition}`;
+       extra = { probableCause: data.probableCause, additionalText: data.additionalText, alarmId: data.alarmId, notificationType: type };
+     } else if(e.domain==='thresholdCrossingAlert'){
+       const tf = raw.thresholdCrossingAlertFields || {};
+       condition = tf.indicatorName || 'Threshold Breach';
+       severity = 'MAJOR';
+       key = `${e.sourceName}::tca::${condition}`;
+       extra = { thresholdCrossed: tf.thresholdCrossed, possibleHostName: tf.possibleHostName };
+     } else {
+       return;
+     }
 
-    if(e.domain==='fault'){
-      const ff = raw.faultFields || {};
-      condition = ff.alarmCondition || 'Unknown Condition';
-      severity = (ff.eventSeverity||'WARNING').toUpperCase();
-      key = `${e.sourceName}::fault::${condition}`;
-      extra = { specificProblem: ff.specificProblem, eventCategory: ff.eventCategory, vfStatus: ff.vfStatus };
-    } else if(e.domain==='stndDefined'){
-      const type = resolveStndType(e);
-      if(!isStndAlarmType(type)) return;
-      const data = raw.stndDefinedFields?.data || {};
-      condition = data.probableCause || raw.stndDefinedFields?.notificationFields?.notificationType || e.eventName || 'Unknown Condition';
-      severity = normalizeStndSeverity(data.perceivedSeverity, type);
-      key = `${e.sourceName}::stnd::${condition}`;
-      extra = { probableCause: data.probableCause, additionalText: data.additionalText, alarmId: data.alarmId, notificationType: type };
-    } else if(e.domain==='thresholdCrossingAlert'){
-      const tf = raw.thresholdCrossingAlertFields || {};
-      condition = tf.indicatorName || 'Threshold Breach';
-      severity = 'MAJOR';
-      key = `${e.sourceName}::tca::${condition}`;
-      extra = { thresholdCrossed: tf.thresholdCrossed, possibleHostName: tf.possibleHostName };
-    } else {
-      return;
-    }
+     if(!groups[key]){
+       groups[key] = { key, device:e.sourceName, condition, domain, severity, firstSeen:e.receivedAt, lastSeen:e.receivedAt, occurrences:0, extra };
+     }
+     const g = groups[key];
+     g.occurrences += 1;
+     if(e.receivedAt < g.firstSeen) g.firstSeen = e.receivedAt;
+     if(e.receivedAt >= g.lastSeen){ g.lastSeen = e.receivedAt; g.severity = severity; g.extra = extra; }
+   });
 
-    if(!groups[key]){
-      groups[key] = {
-        key, device:e.sourceName, condition, domain,
-        severity, firstSeen:e.receivedAt, lastSeen:e.receivedAt, occurrences:0, extra
-      };
-    }
-    const g = groups[key];
-    g.occurrences += 1;
-    if(e.receivedAt < g.firstSeen) g.firstSeen = e.receivedAt;
-    if(e.receivedAt >= g.lastSeen){ g.lastSeen = e.receivedAt; g.severity = severity; g.extra = extra; }
- });
-
- return Object.values(groups).sort((a,b)=>{
-    if(a.severity==='CLEARED' && b.severity!=='CLEARED') return 1;
-    if(b.severity==='CLEARED' && a.severity!=='CLEARED') return -1;
-    const rd = severityRank(b.severity)-severityRank(a.severity);
-    if(rd!==0) return rd;
-    return new Date(b.lastSeen) - new Date(a.lastSeen);
- });
+   return Object.values(groups).sort((a,b)=>{
+     if(a.severity==='CLEARED' && b.severity!=='CLEARED') return 1;
+     if(b.severity==='CLEARED' && a.severity!=='CLEARED') return -1;
+     const rd = severityRank(b.severity)-severityRank(a.severity);
+     if(rd!==0) return rd;
+     return new Date(b.lastSeen) - new Date(a.lastSeen);
+   });
+  } catch(err) {
+    console.error('[ERROR] computeAlarmGroups failed:', err);
+    return [];
+  }
 }
 
 function severityRank(sev){
@@ -2615,103 +2355,93 @@ function alarmWithinTimeRange(lastSeen, range){
   const spans = { '15m': 15*60000, '1h': 60*60000, '24h': 24*60*60000 };
   const span = spans[range];
   if(!span) return true;
-  const age = Date.now() - new Date(lastSeen).getTime();
-  return age <= span;
+  return (Date.now() - new Date(lastSeen).getTime()) <= span;
 }
 
 function renderAlarmSummary(groups, stripId, pillId){
- const active = groups.filter(g=>g.severity!=='CLEARED');
- const counts = { CRITICAL:0, MAJOR:0, WARNING:0 };
- active.forEach(g=>{ if(counts[g.severity]!==undefined) counts[g.severity]++; });
+  const active = groups.filter(g=>g.severity!=='CLEARED');
+  const counts = { CRITICAL:0, MAJOR:0, WARNING:0 };
+  active.forEach(g=>{ if(counts[g.severity]!==undefined) counts[g.severity]++; });
 
- if(pillId){
-    document.getElementById(pillId).textContent = `${active.length} open`;
- }
-
- document.getElementById(stripId).innerHTML = `
+  if(pillId) document.getElementById(pillId).textContent = `${active.length} open`;
+  document.getElementById(stripId).innerHTML = `
     <div class="alarm-summary-chip crit"><p>Critical</p><h4>${counts.CRITICAL}</h4></div>
     <div class="alarm-summary-chip major"><p>Major</p><h4>${counts.MAJOR}</h4></div>
     <div class="alarm-summary-chip warn"><p>Warning</p><h4>${counts.WARNING}</h4></div>
     <div class="alarm-summary-chip ok"><p>Cleared</p><h4>${groups.length-active.length}</h4></div>
- `["trim"]();
+  `;
 }
 
 function renderAlarms(){
- const groups = computeAlarmGroups();
+  try {
+   const groups = computeAlarmGroups();
+   renderAlarmSummary(groups, 'alarmSummaryStrip', null);
+   renderAlarmSummary(groups, 'overviewAlarmStrip', 'overviewAlarmPill');
 
- renderAlarmSummary(groups, 'alarmSummaryStrip', null);
- renderAlarmSummary(groups, 'overviewAlarmStrip', 'overviewAlarmPill');
+   const search=(document.getElementById('alarmSearch').value||'').toLowerCase();
+   const searchTerms = search.split(/\s+/).filter(Boolean);
+   const domainFilter=document.getElementById('alarmDomainFilter').value;
+   const sevFilter=document.getElementById('alarmSeverityFilter').value;
+   const timeRangeFilter=document.getElementById('alarmTimeRangeFilter').value;
 
- const search=(document.getElementById('alarmSearch').value||'').toLowerCase();
- const searchTerms = search.split(/\s+/).filter(Boolean);
- const domainFilter=document.getElementById('alarmDomainFilter').value;
- const sevFilter=document.getElementById('alarmSeverityFilter').value;
- const timeRangeFilter=document.getElementById('alarmTimeRangeFilter').value;
+   let filtered = groups.filter(g=>{
+     const text=(g.device+' '+g.condition+' '+g.domain).toLowerCase();
+     if(searchTerms.length && !searchTerms.every(t=>text.includes(t))) return false;
+     if(domainFilter && g.domain!==domainFilter) return false;
+     if(sevFilter && g.severity!==sevFilter) return false;
+     if(!alarmWithinTimeRange(g.lastSeen, timeRangeFilter)) return false;
+     return true;
+   });
 
- let filtered = groups.filter(g=>{
-    const text=(g.device+' '+g.condition+' '+g.domain).toLowerCase();
-    if(searchTerms.length && !searchTerms.every(t=>text.includes(t))) return false;
-    if(domainFilter && g.domain!==domainFilter) return false;
-    if(sevFilter && g.severity!==sevFilter) return false;
-    if(!alarmWithinTimeRange(g.lastSeen, timeRangeFilter)) return false;
-    return true;
- });
+   document.querySelectorAll('#view-alarms thead th[data-sort]').forEach(th=>{
+     th.classList.toggle('sorted', th.dataset.sort===alarmSort.key);
+     th.querySelector('.sort-arrow').textContent = th.dataset.sort===alarmSort.key ? (alarmSort.dir==='asc'?'\u2191':'\u2193') : '';
+   });
 
- document.querySelectorAll('#view-alarms thead th[data-sort]').forEach(th=>{
-    th.classList.toggle('sorted', th.dataset.sort===alarmSort.key);
-    th.querySelector('.sort-arrow').textContent = th.dataset.sort===alarmSort.key ? (alarmSort.dir==='asc'?'\u2191':'\u2193') : '';
- });
+   if(alarmSort.key){
+     filtered.sort((a,b)=>{
+       let av=a[alarmSort.key], bv=b[alarmSort.key];
+       if(alarmSort.key==='occurrences'){ av = av||0; bv = bv||0; }
+       else if(alarmSort.key==='firstSeen' || alarmSort.key==='lastSeen'){ av = new Date(av||0).getTime(); bv = new Date(bv||0).getTime(); }
+       else if(alarmSort.key==='severity'){ av = severityRank(av); bv = severityRank(bv); }
+       else { av = (av||'').toString().toLowerCase(); bv = (bv||'').toString().toLowerCase(); }
+       if(av<bv) return alarmSort.dir==='asc'?-1:1;
+       if(av>bv) return alarmSort.dir==='asc'?1:-1;
+       return 0;
+     });
+   }
 
- if(alarmSort.key){
-    filtered.sort((a,b)=>{
-      let av=a[alarmSort.key], bv=b[alarmSort.key];
-      if(alarmSort.key==='occurrences'){
-        av = av||0; bv = bv||0;
-      } else if(alarmSort.key==='firstSeen' || alarmSort.key==='lastSeen'){
-        av = new Date(av||0).getTime(); bv = new Date(bv||0).getTime();
-      } else if(alarmSort.key==='severity'){
-        av = severityRank(av); bv = severityRank(bv);
-      } else {
-        av = (av||'').toString().toLowerCase(); bv = (bv||'').toString().toLowerCase();
-      }
-      if(av<bv) return alarmSort.dir==='asc'?-1:1;
-      if(av>bv) return alarmSort.dir==='asc'?1:-1;
-      return 0;
-    });
- }
-
- const table=document.getElementById('alarmsTable');
- if(filtered.length===0){
-    table.innerHTML='<tr><td colspan="7" class="empty-state">No alarms match the current filters.</td></tr>';
- } else {
-    table.innerHTML = filtered.map(g=>{
-      return `
-      <tr class="alarm-row ${g.severity}" data-alarm-key="${g.key}" style="cursor:pointer;">
-        <td><span class="sev-chip ${g.severity}">${g.severity}</span></td>
-        <td>${g.device}</td>
-        <td>${g.condition}</td>
-        <td><span class="badge ${g.domain}">${g.domain}</span></td>
-        <td>${g.firstSeen}</td>
-        <td>${g.lastSeen}</td>
-        <td>${g.occurrences}</td>
-      </tr>`;
-    }).join('');
-
-    table.querySelectorAll('tr[data-alarm-key]').forEach(row=>{
-      row.addEventListener('click', ()=>{
-        openAlarmModal(row.dataset.alarmKey, groups);
-      });
-    });
- }
-
- updateNavBadges(groups);
+   const table=document.getElementById('alarmsTable');
+   if(filtered.length===0){
+     table.innerHTML='<tr><td colspan="8" class="empty-state">No alarms match the current filters.</td></tr>';
+   } else {
+     table.innerHTML = filtered.map(g=>{
+       return `
+       <tr class="alarm-row ${g.severity}" data-alarm-key="${g.key}">
+         <td style="cursor:pointer;" onclick="openAlarmModal('${g.key}')"><span class="sev-chip ${g.severity}">${g.severity}</span></td>
+         <td style="cursor:pointer;" onclick="openAlarmModal('${g.key}')">${g.device}</td>
+         <td style="cursor:pointer;" onclick="openAlarmModal('${g.key}')">${g.condition}</td>
+         <td style="cursor:pointer;" onclick="openAlarmModal('${g.key}')"><span class="badge ${g.domain}">${g.domain}</span></td>
+         <td style="cursor:pointer;" onclick="openAlarmModal('${g.key}')">${formatReadableTime(g.firstSeen)}</td>
+         <td style="cursor:pointer;" onclick="openAlarmModal('${g.key}')">${formatReadableTime(g.lastSeen)}</td>
+         <td style="cursor:pointer;" onclick="openAlarmModal('${g.key}')">${g.occurrences}</td>
+         <td>
+           <button class="btn small" onclick="navigator.clipboard.writeText('${g.key}').then(()=>{ const orig=this.textContent; this.textContent='Copied'; setTimeout(()=>this.textContent=orig, 900); }).catch(()=>{});" title="Copy Alarm Key">Copy</button>
+         </td>
+       </tr>`;
+     }).join('');
+   }
+   updateNavBadges(groups);
+  } catch(err) {
+    console.error('[ERROR] renderAlarms failed:', err);
+  }
 }
 
 document.querySelectorAll('#view-alarms thead th[data-sort]').forEach(th=>{
   th.addEventListener('click', ()=>{
     const key=th.dataset.sort;
-    if(alarmSort.key===key){ alarmSort.dir = alarmSort.dir==='asc'?'desc':'asc'; }
-    else { alarmSort = { key, dir:'asc' }; }
+    if(alarmSort.key===key) alarmSort.dir = alarmSort.dir==='asc'?'desc':'asc';
+    else alarmSort = { key, dir:'asc' };
     renderAlarms();
   });
 });
@@ -2725,11 +2455,7 @@ function findAlarmEvents(group){
   return cachedEvents.filter(e=>{
     if(e.sourceName !== group.device) return false;
     const raw = e.raw || {};
-
-    if(group.domain==='fault' && e.domain==='fault'){
-      const ff = raw.faultFields || {};
-      return (ff.alarmCondition || 'Unknown Condition') === group.condition;
-    }
+    if(group.domain==='fault' && e.domain==='fault') return (raw.faultFields?.alarmCondition || 'Unknown Condition') === group.condition;
     if(group.domain==='stndDefined' && e.domain==='stndDefined'){
       const type = resolveStndType(e);
       if(!isStndAlarmType(type)) return false;
@@ -2737,10 +2463,7 @@ function findAlarmEvents(group){
       const condition = data.probableCause || raw.stndDefinedFields?.notificationFields?.notificationType || e.eventName || 'Unknown Condition';
       return condition === group.condition;
     }
-    if(group.domain==='thresholdCrossingAlert' && e.domain==='thresholdCrossingAlert'){
-      const tf = raw.thresholdCrossingAlertFields || {};
-      return (tf.indicatorName || 'Threshold Breach') === group.condition;
-    }
+    if(group.domain==='thresholdCrossingAlert' && e.domain==='thresholdCrossingAlert') return (raw.thresholdCrossingAlertFields?.indicatorName || 'Threshold Breach') === group.condition;
     return false;
   }).sort((a,b)=> new Date(b.receivedAt||0) - new Date(a.receivedAt||0));
 }
@@ -2749,62 +2472,58 @@ function alarmExtraDetailRows(group){
   const extra = group.extra || {};
   const entries = Object.entries(extra).filter(([,v]) => v !== undefined && v !== null && v !== '');
   if(entries.length === 0) return '';
-  return entries.map(([k,v]) => `
-    <div class="modal-stat"><p>${k}</p><h4>${v}</h4></div>
-  `).join('');
+  return entries.map(([k,v]) => `<div class="modal-stat"><p>${k}</p><h4>${v}</h4></div>`).join('');
 }
 
-function openAlarmModal(key, groups){
-  const group = (groups || computeAlarmGroups()).find(g=>g.key===key);
-  const backdrop = document.getElementById('alarmModalBackdrop');
-  const body = document.getElementById('alarmModalBody');
+function openAlarmModal(key){
+  try {
+   const groups = computeAlarmGroups();
+   const group = groups.find(g=>g.key===key);
+   const backdrop = document.getElementById('alarmModalBackdrop');
+   const body = document.getElementById('alarmModalBody');
 
-  if(!group){
-    document.getElementById('alarmModalTitle').textContent = 'Alarm';
-    body.innerHTML = '<div class="empty-state">This alarm is no longer present in the current event window.</div>';
-    backdrop.classList.add('open');
-    return;
+   if(!group){
+     document.getElementById('alarmModalTitle').textContent = 'Alarm';
+     body.innerHTML = '<div class="empty-state">This alarm is no longer present in current events.</div>';
+     backdrop.classList.add('open');
+     return;
+   }
+
+   document.getElementById('alarmModalTitle').textContent = `${group.device} \u2014 ${group.condition}`;
+   const events = findAlarmEvents(group);
+   const latest = events[0];
+
+   const metaGrid = `
+     <div class="modal-grid">
+       <div class="modal-stat"><p>Severity</p><h4><span class="sev-chip ${group.severity}">${group.severity}</span></h4></div>
+       <div class="modal-stat"><p>Domain</p><h4><span class="badge ${group.domain}">${group.domain}</span></h4></div>
+       <div class="modal-stat"><p>Device</p><h4>${group.device}</h4></div>
+       <div class="modal-stat"><p>Occurrences</p><h4>${group.occurrences}</h4></div>
+       <div class="modal-stat"><p>First Seen</p><h4>${formatReadableTime(group.firstSeen)}</h4></div>
+       <div class="modal-stat"><p>Last Seen</p><h4>${formatReadableTime(group.lastSeen)}</h4></div>
+       ${alarmExtraDetailRows(group)}
+     </div>`;
+
+   const latestRawBlock = latest
+     ? `<h5 style="margin-top: 1rem;">Complete Raw JSON Payload</h5>
+        <pre style="background: #0b0f19; color: #38edf8; padding: 12px; border-radius: 4px; max-height: 280px; overflow: auto; font-family: 'IBM Plex Mono', monospace; font-size: 11px;">${JSON.stringify(latest.raw || latest, null, 2).replace(/</g,'&lt;')}</pre>
+        <div class="modal-actions" style="display:flex; justify-content:flex-end; margin-top: 0.5rem; margin-bottom: 1rem;">
+           <button class="btn small primary" onclick="navigator.clipboard.writeText('${latest.eventId || ''}'); alert('Event ID copied!');">Copy Event ID</button>
+        </div>`
+     : '';
+
+   const historyRows = events.map(e=>`
+     <div class="modal-event-row">
+       <span class="badge ${e.domain}">${e.domain}</span>
+       <span>${e.eventName||'-'}</span>
+       <time>${formatReadableTime(e.receivedAt)}</time>
+     </div>`).join('');
+
+   body.innerHTML = `${metaGrid}${latestRawBlock}<h5>Occurrence History (${events.length})</h5><div style="max-height: 180px; overflow-y: auto;">${historyRows || '<div class="empty-state">No matching events.</div>'}</div>`;
+   backdrop.classList.add('open');
+  } catch(err) {
+    console.error('[ERROR] openAlarmModal failed:', err);
   }
-
-  document.getElementById('alarmModalTitle').textContent = `${group.device} \u2014 ${group.condition}`;
-
-  const events = findAlarmEvents(group);
-  const latest = events[0];
-
-  const metaGrid = `
-    <div class="modal-grid">
-      <div class="modal-stat"><p>Severity</p><h4><span class="sev-chip ${group.severity}">${group.severity}</span></h4></div>
-      <div class="modal-stat"><p>Domain</p><h4><span class="badge ${group.domain}">${group.domain}</span></h4></div>
-      <div class="modal-stat"><p>Device</p><h4>${group.device}</h4></div>
-      <div class="modal-stat"><p>Occurrences</p><h4>${group.occurrences}</h4></div>
-      <div class="modal-stat"><p>First Seen</p><h4>${group.firstSeen||'&mdash;'}</h4></div>
-      <div class="modal-stat"><p>Last Seen</p><h4>${group.lastSeen||'&mdash;'}</h4></div>
-      ${alarmExtraDetailRows(group)}
-    </div>`;
-
-  const latestRawBlock = latest
-    ? `<h5 style="margin-top: 1rem;">Complete Raw JSON Payload</h5>
-       <pre style="background: #0b0f19; color: #38edf8; padding: 12px; border-radius: 4px; max-height: 280px; overflow: auto; font-family: 'IBM Plex Mono', monospace; font-size: 11px;">${JSON.stringify(latest.raw || latest, null, 2).replace(/</g,'&lt;')}</pre>
-       <div class="modal-actions" style="display:flex; justify-content:flex-end; margin-top: 0.5rem; margin-bottom: 1rem;">
-          <button class="btn small primary" onclick="navigator.clipboard.writeText(JSON.stringify(${JSON.stringify(latest.raw || latest).replace(/'/g, "\\'")}, null, 2)); alert('Full JSON payload copied to clipboard!');">Copy Full JSON</button>
-       </div>`
-    : '';
-
-  const historyRows = events.map(e=>`
-    <div class="modal-event-row">
-      <span class="badge ${e.domain}">${e.domain}</span>
-      <span>${e.eventName||'-'}</span>
-      <time>${e.receivedAt ? new Date(e.receivedAt).toLocaleTimeString() : ''}</time>
-    </div>`).join('');
-
-  body.innerHTML = `
-    ${metaGrid}
-    ${latestRawBlock}
-    <h5>Occurrence History (${events.length})</h5>
-    <div id="alarmModalEvents" style="max-height: 180px; overflow-y: auto;">${historyRows || '<div class="empty-state">No matching raw events in the current buffer.</div>'}</div>
-  `;
-
-  backdrop.classList.add('open');
 }
 
 document.getElementById('alarmModalClose').addEventListener('click', ()=>{
@@ -2815,52 +2534,53 @@ document.getElementById('alarmModalBackdrop').addEventListener('click', (e)=>{
 });
 
 function updateNavBadges(groups){
- const g = groups || computeAlarmGroups();
- const openCount = g.filter(x=>x.severity!=='CLEARED').length;
- const badge = document.getElementById('navAlarmBadge');
- if (badge) {
-   badge.textContent = openCount;
-   badge.classList.toggle('alert', openCount>0);
- }
- const filesBadge = document.getElementById('navFilesBadge');
- if (filesBadge) filesBadge.textContent = cachedFiles.length;
- const pnfBadge = document.getElementById('navPnfBadge');
- if (pnfBadge) pnfBadge.textContent = cachedPNFs.length;
- const heartbeatBadge = document.getElementById('navHeartbeatBadge');
- if (heartbeatBadge) heartbeatBadge.textContent = cachedEvents.filter(isHeartbeatEvent).length;
+  try {
+   const g = groups || computeAlarmGroups();
+   const openCount = g.filter(x=>x.severity!=='CLEARED').length;
+   const badge = document.getElementById('navAlarmBadge');
+   if (badge) {
+     badge.textContent = openCount;
+     badge.classList.toggle('alert', openCount>0);
+   }
+   const filesBadge = document.getElementById('navFilesBadge');
+   if (filesBadge) filesBadge.textContent = cachedFiles.length;
+   const heartbeatBadge = document.getElementById('navHeartbeatBadge');
+   if (heartbeatBadge) heartbeatBadge.textContent = cachedEvents.filter(isHeartbeatEvent).length;
+  } catch(err) {
+    console.error('[ERROR] updateNavBadges failed:', err);
+  }
 }
 
 /* ============================================================
-    Toasts for New Critical Faults
+    Toasts & Utilities
     ============================================================ */
 function checkForCriticalToasts(){
- const criticals = cachedEvents.filter(e=>{
+  const criticals = cachedEvents.filter(e=>{
     if(e.domain!=='fault') return false;
-    const sev=(e.raw?.faultFields?.eventSeverity||'').toUpperCase();
-    return sev==='CRITICAL';
- });
+    return (e.raw?.faultFields?.eventSeverity||'').toUpperCase() === 'CRITICAL';
+  });
 
- if(firstLoad){
+  if(firstLoad){
     criticals.forEach(e=>toastedEventIds.add(e.collectorId));
     firstLoad = false;
     return;
- }
+  }
 
- criticals.forEach(e=>{
+  criticals.forEach(e=>{
     if(toastedEventIds.has(e.collectorId)) return;
     toastedEventIds.add(e.collectorId);
     showToast(e);
- });
+  });
 }
 
 function showToast(event){
- const stack=document.getElementById('toastStack');
- const el=document.createElement('div');
- el.className='toast';
- el.innerHTML=`<strong>Critical Fault</strong>${event.sourceName}: ${event.raw?.faultFields?.alarmCondition||event.eventName}`;
- el.addEventListener('click', ()=>{ switchView('alarms'); });
- stack.appendChild(el);
- setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(12px)', setTimeout(()=>el.remove(),250); }, 6000);
+  const stack=document.getElementById('toastStack');
+  const el=document.createElement('div');
+  el.className='toast';
+  el.innerHTML=`<strong>Critical Fault</strong>${event.sourceName}: ${event.raw?.faultFields?.alarmCondition||event.eventName}`;
+  el.addEventListener('click', ()=>switchView('alarms'));
+  stack.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(12px)', setTimeout(()=>el.remove(),250); }, 6000);
 }
 
 function liveState(lastSeen){
@@ -2884,13 +2604,15 @@ function timeAgo(dateStr){
     Master Refresh Loop
     ============================================================ */
 async function refresh(){
- await loadStats();
- await loadEvents();
- await loadDevices();
- await loadPNFs();
- await loadFiles();
-
- renderAlarms();
+  try {
+    await loadStats();
+    await loadEvents();
+    await loadDevices();
+    await loadFiles();
+    renderAlarms();
+  } catch(err) {
+    console.error('[ERROR] refresh loop failed:', err);
+  }
 }
 
 refresh();

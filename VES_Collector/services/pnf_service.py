@@ -401,7 +401,7 @@ def update_forward_config(
 # ==========================================================
 
 def forward_pnf(pnf):
-
+    print("PNF forwarded:",pnf)
     return forward_pnf_netconf(
 
         pnf,

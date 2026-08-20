@@ -120,6 +120,7 @@ def update_device(event: Dict[str, Any]):
     or can be used for any localized state updates if required.
     """
     device_id = get_device_id(event)
+    print("Device Id:",device_id)
     # The database already stores the event via ingestion pipeline.
     # This keeps compatibility with any service calls expecting update_device.
     return get_or_create_device(device_id)

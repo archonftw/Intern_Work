@@ -46,12 +46,14 @@ class FileFetchError(Exception):
 # ------------------------------------------------------------------
 
 def is_file_ready_event(event: Dict[str, Any]) -> bool:
+    logger.debug("Checking whether event is a fileReady event")
     """
     True only for stndDefined events that actually carry a fileInfoList.
     Domain-gated first, since a fileInfoList-shaped array under some other
     domain shouldn't be treated as fileReady.
     """
     if event.get("commonEventHeader", {}).get("domain") != "stndDefined":
+        logger.debug("Event is not stndDefined; skipping fileReady processing")
         return False
 
     stnd = event.get("stndDefinedFields")
@@ -59,11 +61,14 @@ def is_file_ready_event(event: Dict[str, Any]) -> bool:
         return False
 
     data = stnd.get("data", {})
-    return isinstance(data.get("fileInfoList"), list)
+    result = isinstance(data.get("fileInfoList"), list)
+    logger.info("fileReady event detection completed | result=%s", result)
+    return result
 
 
 def extract_file_entries(event: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Flatten a fileReady event into one record per file, defensively."""
+    logger.info("Starting file entry extraction")
     header = event.get("commonEventHeader", {})
     stnd = event.get("stndDefinedFields", {})
     data = stnd.get("data", {})
@@ -105,6 +110,7 @@ def extract_file_entries(event: Dict[str, Any]) -> List[Dict[str, Any]]:
         )
         records.append(record)
 
+    logger.info("Successfully extracted %d file entry/entries", len(records))
     return records
 
 
@@ -123,6 +129,7 @@ def _redact_location(location: str) -> str:
 
 
 def store_file_entries(records: List[Dict[str, Any]]) -> None:
+    logger.info("Starting storage of %d file entry/entries", len(records))
     if isinstance(storage.memory.FILE_STORE, list):
         storage.memory.FILE_STORE.extend(records)
         while len(storage.memory.FILE_STORE) > MAX_FILE_STORE:
@@ -142,6 +149,8 @@ def store_file_entries(records: List[Dict[str, Any]]) -> None:
             record.get("fileSize"),
         )
 
+    logger.info("Successfully stored %d file entry/entries", len(records))
+
 
 def process_file_ready(event: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
@@ -152,10 +161,15 @@ def process_file_ready(event: Dict[str, Any]) -> List[Dict[str, Any]]:
     against stndDefined-notifyFileReady.json before process_stnd() (and
     therefore this function) is ever called. No re-validation needed here.
     """
-    records = extract_file_entries(event)
-    store_file_entries(records)
+    logger.info("Processing fileReady event")
+    try:
+        records = extract_file_entries(event)
+        store_file_entries(records)
+    except Exception:
+        logger.exception("process_file_ready FAILED while extracting or storing file entries")
+        raise
 
-    logger.info("Stored %d fileReady file(s)", len(records))
+    logger.info("SUCCESS | process_file_ready completed | stored=%d", len(records))
     return records
 
 
@@ -206,6 +220,7 @@ def _host_is_private(hostname: str) -> bool:
 
 
 def _guard_remote_host(hostname: str) -> None:
+    logger.debug("Validating remote host before fetch | host=%s", hostname)
     if not ALLOW_REMOTE_FETCH:
         raise FileFetchError(
             "Remote fetching is disabled (ALLOW_REMOTE_FETCH=False in config). "
@@ -218,6 +233,8 @@ def _guard_remote_host(hostname: str) -> None:
             "(e.g. a local test generator)."
         )
 
+    logger.debug("Remote host validation successful | host=%s", hostname)
+
 
 def fetch_file_content(file_location: str):
     """
@@ -225,22 +242,36 @@ def fetch_file_content(file_location: str):
     the URL are extracted and used automatically for ftp/sftp.
     Returns (filename, content_bytes, content_type). Raises FileFetchError.
     """
+    safe_location = _redact_location(file_location)
     parsed = urlparse(file_location)
     scheme = parsed.scheme.lower()
+    logger.info("Starting file fetch | scheme=%s | location=%s", scheme or "local", safe_location)
 
-    if scheme in ("", "file"):
-        return _fetch_local(parsed, file_location)
-    if scheme in ("http", "https"):
-        return _fetch_http(parsed, file_location)
-    if scheme == "ftp":
-        return _fetch_ftp(parsed)
-    if scheme == "sftp":
-        return _fetch_sftp(parsed)
+    try:
+        if scheme in ("", "file"):
+            result = _fetch_local(parsed, file_location)
+        elif scheme in ("http", "https"):
+            result = _fetch_http(parsed, file_location)
+        elif scheme == "ftp":
+            result = _fetch_ftp(parsed)
+        elif scheme == "sftp":
+            result = _fetch_sftp(parsed)
+        else:
+            raise FileFetchError(f"Unsupported or unrecognized scheme: '{scheme}'")
 
-    raise FileFetchError(f"Unsupported or unrecognized scheme: '{scheme}'")
+        logger.info("SUCCESS | File fetch completed | filename=%s | bytes=%d", result[0], len(result[1]))
+        return result
+    except FileFetchError as e:
+        logger.error("File fetch FAILED | scheme=%s | location=%s | error=%s", scheme or "local", safe_location, e)
+        raise
+    except Exception:
+        logger.exception("Unexpected error in fetch_file_content | scheme=%s | location=%s", scheme or "local", safe_location)
+        raise
+
 
 
 def _fetch_local(parsed, file_location: str):
+    logger.info("Fetching local file | path=%s", parsed.path if parsed.scheme == "file" else file_location)
     path = parsed.path if parsed.scheme == "file" else file_location
     if not os.path.isfile(path):
         raise FileFetchError(f"Local file not found: {path}")
@@ -254,10 +285,12 @@ def _fetch_local(parsed, file_location: str):
 
     filename = os.path.basename(path)
     content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    logger.info("SUCCESS | Local file fetched | filename=%s | bytes=%d", filename, len(content))
     return filename, content, content_type
 
 
 def _fetch_http(parsed, file_location: str):
+    logger.info("Fetching HTTP file | host=%s | path=%s", parsed.hostname, parsed.path)
     _guard_remote_host(parsed.hostname)
     if not HAVE_REQUESTS:
         raise FileFetchError("'requests' library not installed; cannot fetch http(s) files")
@@ -266,6 +299,7 @@ def _fetch_http(parsed, file_location: str):
         resp = requests.get(file_location, stream=True, timeout=FETCH_TIMEOUT_SEC)
         resp.raise_for_status()
     except requests.RequestException as e:
+        logger.error("HTTP fetch FAILED | host=%s | error=%s", parsed.hostname, e)
         raise FileFetchError(f"HTTP fetch failed: {e}")
 
     buf = io.BytesIO()
@@ -276,10 +310,13 @@ def _fetch_http(parsed, file_location: str):
 
     filename = os.path.basename(parsed.path) or "downloaded_file"
     content_type = resp.headers.get("Content-Type", "application/octet-stream")
-    return filename, buf.getvalue(), content_type
+    content = buf.getvalue()
+    logger.info("SUCCESS | HTTP file fetched | filename=%s | bytes=%d", filename, len(content))
+    return filename, content, content_type
 
 
 def _fetch_ftp(parsed):
+    logger.info("Fetching FTP file | host=%s | path=%s", parsed.hostname, parsed.path)
     _guard_remote_host(parsed.hostname)
     user = unquote(parsed.username) if parsed.username else "anonymous"
     passwd = unquote(parsed.password) if parsed.password else "anonymous"
@@ -292,6 +329,7 @@ def _fetch_ftp(parsed):
         ftp.retrbinary(f"RETR {parsed.path}", buf.write, blocksize=65536)
         ftp.quit()
     except Exception as e:
+        logger.exception("FTP fetch FAILED | host=%s", parsed.hostname)
         raise FileFetchError(f"FTP fetch failed: {e}")
 
     if buf.tell() > MAX_FETCH_BYTES:
@@ -299,10 +337,13 @@ def _fetch_ftp(parsed):
 
     filename = os.path.basename(parsed.path) or "downloaded_file"
     content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    return filename, buf.getvalue(), content_type
+    content = buf.getvalue()
+    logger.info("SUCCESS | FTP file fetched | filename=%s | bytes=%d", filename, len(content))
+    return filename, content, content_type
 
 
 def _fetch_sftp(parsed):
+    logger.info("Fetching SFTP file | host=%s | path=%s", parsed.hostname, parsed.path)
     _guard_remote_host(parsed.hostname)
     if not HAVE_PARAMIKO:
         raise FileFetchError("'paramiko' library not installed; cannot fetch sftp files")
@@ -327,10 +368,14 @@ def _fetch_sftp(parsed):
         sftp.close()
         transport.close()
     except FileFetchError:
+        logger.error("SFTP fetch FAILED due to file fetch validation | host=%s", parsed.hostname)
         raise
     except Exception as e:
+        logger.exception("SFTP fetch FAILED | host=%s", parsed.hostname)
         raise FileFetchError(f"SFTP fetch failed: {e}")
 
     filename = os.path.basename(parsed.path) or "downloaded_file"
     content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    return filename, buf.getvalue(), content_type
+    content = buf.getvalue()
+    logger.info("SUCCESS | SFTP file fetched | filename=%s | bytes=%d", filename, len(content))
+    return filename, content, content_type
